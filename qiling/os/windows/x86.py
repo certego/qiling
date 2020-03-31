@@ -51,7 +51,7 @@ def hook_winapi(ql, address, size):
         if winapi_func:
             try:
                 winapi_func(ql, address, {})
-                ql.dprint(2, "CallAddress 0x%x" % (int(ql.pc)-5))
+                ql.dprint(2, "CallAddress = 0x%x , ReturnAddress = 0x%x" % (int(ql.pc)-5), ql.pc)
             except Exception:
                 ql.dprint(0, "[!] %s Exception Found" % winapi_name)
                 raise QlErrorSyscallError("[!] Windows API Implementation Error")
