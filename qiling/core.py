@@ -57,6 +57,7 @@ class Qiling:
             stack_address=0,
             stack_size=0,
             interp_base=0,
+            debug_file = None
     ):
         # Define during ql=Qiling()
         self.output = output
@@ -122,7 +123,8 @@ class Qiling:
         # Bind to localhost
         self.bindtolocalhost = False
         # required root permission
-        self.root = True        
+        self.root = True
+        self.debug_file = debug_file
 
         if self.ostype and type(self.ostype) == str:
             self.ostype = self.ostype.lower()
@@ -150,12 +152,15 @@ class Qiling:
             self.log_dir = os.path.join(self.rootfs, self.log_dir)
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir, 0o755)
+            if self.log_file is None:
+                pid = os.getpid()
 
-            pid = os.getpid()
+                # Is better to call the logfile as the binary we are testing instead of a pid with no logical value
 
-            # Is better to call the logfile as the binary we are testing instead of a pid with no logical value
-            self.log_file = os.path.join(self.log_dir, self.filename[0].split("/")[-1])
-            _logger = ql_setup_logging_file(self.output, self.log_file + "_" + str(pid), _logger)
+                self.log_file = os.path.join(self.log_dir, self.filename[0].split("/")[-1]) + "_" + str(pid)
+            else:
+                self.log_file = os.path.join(self.log_dir, self.log_file)
+            _logger = ql_setup_logging_file(self.output, self.log_file, _logger)
 
         self.log_file_fd = _logger
         
