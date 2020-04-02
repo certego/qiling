@@ -152,7 +152,7 @@ class Qiling:
             self.log_dir = os.path.join(self.rootfs, self.log_dir)
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir, 0o755)
-            if self.log_file is None:
+            if self.debug_file is None:
                 pid = os.getpid()
 
                 # Is better to call the logfile as the binary we are testing instead of a pid with no logical value
