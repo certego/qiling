@@ -25,14 +25,14 @@ from qiling.os.const import *
 from qiling.os.macos.const import *
 
 
-class QlMacOSManager:
+class QlOsMacosManager:
     
     def __init__(self, ql):
         self.ql = ql
 
 
     def hook_syscall(self, intno= None, int = None):
-        return self.ql.commos.load_syscall()
+        return self.ql.comm_os.load_syscall()
  
 
     def loader(self):
@@ -110,8 +110,6 @@ class QlMacOSManager:
         if  self.ql.arch == QL_X8664:
             load_commpage(self.ql)
         
-        load_shared_region(self.ql)
-
         if (self.ql.until_addr == 0):
             self.ql.until_addr = QL_ARCHBIT64_EMU_END
         try:
