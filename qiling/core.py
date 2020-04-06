@@ -14,6 +14,7 @@ from qiling.os.utils import *
 from qiling.arch.utils import *
 from qiling.os.linux.thread import *
 from qiling.debugger.utils import *
+from qiling.os.memory import QlMemoryManager
 
 __version__ = "0.9"
 
@@ -24,7 +25,7 @@ def catch_KeyboardInterrupt(ql):
             try:
                 return func(*args, **kw)
             except BaseException as e:
-                # ql.nprint("Received a request from the user to stop!\n")
+                ql.dprint(0, "Received a request from the user to stop!")
                 ql.stop(stop_event=THREAD_EVENT_UNEXECPT_EVENT)
                 ql.internal_exception = e
 
@@ -52,7 +53,6 @@ class Qiling:
             verbose=0,
             log_console=True,
             log_dir=None,
-            log_split=False,
             mmap_start=0,
             stack_address=0,
             stack_size=0,
@@ -73,7 +73,6 @@ class Qiling:
         self.libcache = libcache
         self.log_console = log_console
         self.log_dir = log_dir
-        self.log_split = log_split
         self.mmap_start = mmap_start
         self.stack_address = stack_address
         self.stack_size = stack_size
@@ -97,7 +96,6 @@ class Qiling:
         self.patch_lib = []
         self.patched_lib = []
         self.loadbase = 0
-        self.map_info = []
         self.timeout = 0
         self.until_addr = 0
         self.byte = 0
@@ -109,8 +107,6 @@ class Qiling:
         self.debug_stop = False
         self.internal_exception = None
         self.platform = platform.system()
-        self.dict_posix_syscall = dict()
-        self.user_defined_api = {}
         self.global_thread_id = 0
         self.debugger = None
         self.automatize_input = False
@@ -122,18 +118,28 @@ class Qiling:
         self.ipv6 = False        
         # Bind to localhost
         self.bindtolocalhost = False
-        # required root permission
-        self.root = True
-        self.log_file = log_file
 
+        # by turning this on, you must run your analysis with sudo
+        self.root = True
+        self.log_split = False
+        self.shellcode_init = 0
+        self.entry_point = 0
+
+        """
+        Qiling Framework Core Engine
+        """
+
+        # ostype string - int convertion
         if self.ostype and type(self.ostype) == str:
             self.ostype = self.ostype.lower()
             self.ostype = ostype_convert(self.ostype)
 
+        # pre-define shellcoder env
         if self.shellcoder and self.archtype and type(self.archtype) == str:
             self.arch = self.arch.lower()
             self.arch = arch_convert(self.archtype)
 
+        # read file propeties, not shellcoder
         if self.rootfs and self.shellcoder is None:
             if os.path.exists(str(self.filename[0])) and os.path.exists(self.rootfs):
                 self.path = (str(self.filename[0]))
@@ -144,8 +150,9 @@ class Qiling:
 
             elif not os.path.exists(str(self.filename[0])) or not os.path.exists(self.rootfs):
                 raise QlErrorFileNotFound("[!] Target binary or rootfs not found")
-
-        _logger = ql_setup_logging_stream(self.output)
+        
+        # Looger's configuration
+        _logger = ql_setup_logging_stream(self)
 
         if self.log_dir is not None and type(self.log_dir) == str:
 
@@ -164,7 +171,7 @@ class Qiling:
 
         self.log_file_fd = _logger
         
-        # OS dependent configuration
+        # OS dependent configuration for stdio
         if self.ostype in (QL_LINUX, QL_FREEBSD, QL_MACOS):
             if stdin != 0:
                 self.stdin = stdin
@@ -183,48 +190,79 @@ class Qiling:
             for _ in range(256):
                 self.sigaction_act.append(0)
 
-            self.config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "os", "posix", "configuration.cfg")
-        
-        elif self.ostype == QL_WINDOWS:
-            self.config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "os", "windows", "configuration.cfg")
+        # define analysis enviroment profile
+        self.config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles", ql_ostype_convert_str(self.ostype) + ".ql")
 
+        # double check supported architecture
         if not ql_is_valid_arch(self.arch):
             raise QlErrorArch("[!] Invalid Arch")
 
+        """
+        Load architecture's module, only module
+        Load common os module,  only module
+        ql.pc, ql.sp and etc
+        """
         arch_func = ql_get_arch_module_function(self.arch, ql_arch_convert_str(self.arch).upper())
+        comm_os = ql_get_commonos_module_function(self.ostype)
 
+        """
+        define file is 32 or 64bit, and check file endian
+        QL_ENDIAN_EL = Little Endian
+        big endian is define during ql_elf_check_archtype
+        """
         self.archbit = ql_get_arch_bits(self.arch)
+        if self.arch not in (QL_ENDINABLE):
+            self.archendian = QL_ENDIAN_EL
 
-        if self.arch not in QL_ENDINABLE:
-            self.archendian = QL_ENDIAN_EL    
-        
-        if self.shellcoder and self.arch in QL_ENDINABLE and self.bigendian == True:
-            self.archendian = QL_ENDIAN_EB
-
+        """
+        Load architecture's function
+        Load common os module,  only module
+        ql.pc, ql.sp and etc
+        """
         self.archfunc = arch_func(self)
+        if comm_os:
+            self.commos = comm_os(self)
 
+        # based on CPU bit and set pointer size
         if self.archbit:
             self.pointersize = (self.archbit // 8)
 
+        """
+        Load Memory Management Module
+        ql.mem.read, ql.mem.write and etc
+        """
+        if self.archbit == 64:
+            max_addr = 0xFFFFFFFFFFFFFFFF
+        elif self.archbit == 32:
+            max_addr = 0xFFFFFFFF
+        try:
+            self.mem = QlMemoryManager(self, max_addr)
+        except:
+            raise QlErrorArch("[!] Cannot load Memory Management module")    
+
+        # chceck for supported OS type    
         if self.ostype not in QL_OS:
             raise QlErrorOsType("[!] OSTYPE required: either 'linux', 'windows', 'freebsd', 'macos'")
-
+        
+        # qiling output method conversion
         if self.output and type(self.output) == str:
             self.output = self.output.lower()
             if self.output not in QL_OUTPUT:
                 raise QlErrorOutput("[!] OUTPUT required: either 'default', 'off', 'disasm', 'debug', 'dump'")
 
+        # check verbose, only can check after ouput being defined
         if type(self.verbose) != int or self.verbose > 99 and (self.verbose > 0 and self.output not in (QL_OUT_DEBUG, QL_OUT_DUMP)):
             raise QlErrorOutput("[!] verbose required input as int and less than 99")
 
-        if self.shellcoder and self.arch and self.ostype:
-            self.shellcode()
-        else:
-            self.load_exec()
+        
+        # load os and perform initialization
+        load_os = ql_get_os_module_function(self)        
+        self.load_os = load_os(self)
+        self.load_os.loader()
 
     def build_os_execution(self, function_name):
-        self.runtype = ql_get_os_module_function(self.ostype, self.arch, "runner")
-        return ql_get_os_module_function(self.ostype, self.arch, function_name)
+        self.runtype = ql_get_os_module_function(self, "runner")
+        return ql_get_os_module_function(self, function_name)
 
     def load_exec(self):
         loader_file = self.build_os_execution("loader_file")
@@ -236,6 +274,7 @@ class Qiling:
         loader_shellcode(self)
 
     def run(self):
+        # debugger init
         if self.debugger is not None:
             try:
                 remotedebugsrv, ip, port = '', '', ''
@@ -262,22 +301,29 @@ class Qiling:
                         self.remotedebugsession.close()
                     raise QlErrorOutput("[!] Remote debugging session ended\n")
 
+        # patch binary
         self.__enable_bin_patch()
-        runner = self.build_os_execution("runner")
-        runner(self)
 
+        # run the binary
+        self.load_os.runner()     
+
+        # resume with debugger
         if self.debugger is not None:
             self.remotedebugsession.run()
 
-
+    # normal print out
     def nprint(self, *args, **kw):
         if self.thread_management is not None and self.thread_management.cur_thread is not None:
             fd = self.thread_management.cur_thread.log_file_fd
         else:
             fd = self.log_file_fd
 
-        if self.output != QL_OUT_OFF:
-            fd.info(*args, **kw)
+        msg = args[0]
+
+        # support keyword "end" in ql.print functions, use it as terminator or default newline character by OS
+        msg += kw["end"] if kw.get("end", None) != None else os.linesep
+
+        fd.info(msg)
 
         if fd is not None:
             if isinstance(fd, logging.FileHandler):
@@ -285,33 +331,43 @@ class Qiling:
             elif isinstance(fd, logging.StreamHandler):
                 fd.flush()
 
+    # debug print out, always use with verbose level with dprint(0,"helloworld")
     def dprint(self, level, *args, **kw):
-        if type(self.verbose) != int or self.verbose > 99 and (self.verbose > 0 and self.output not in (QL_OUT_DEBUG, QL_OUT_DUMP)):
-            raise QlErrorOutput("[!] ql.verbose > 1 must use with QL_OUT_DEBUG, QL_OUT_DUMP or else ql.verbose must be 0")
+        try:
+            self.verbose = int(self.verbose)
+        except:
+            raise QlErrorOutput("[!] Verbose muse be int")    
+        
+        if type(self.verbose) != int or self.verbose > 99 or (self.verbose > 0 and self.output not in (QL_OUT_DEBUG, QL_OUT_DUMP)):
+            raise QlErrorOutput("[!] Verbose > 1 must use with QL_OUT_DEBUG or else ql.verbose must be 0")
 
-        if self.verbose >= level:
-            if self.output == QL_OUT_DEBUG:
-                self.log_file_fd.debug(*args, **kw)
-            elif self.output == QL_OUT_DUMP:
-                msg = str(args[0])
-                self.log_file_fd.debug(msg, **kw)
+        if self.output == QL_OUT_DUMP:
+                self.verbose = 99
+
+        if int(self.verbose) >= level and self.output in (QL_OUT_DEBUG, QL_OUT_DUMP):
+                self.nprint(*args, **kw)
+
 
     def addr_to_str(self, addr, short=False, endian="big"):
         return ql_addr_to_str(self, addr, short, endian)
 
+
     def asm2bytes(self, runasm, arm_thumb=None):
         return ql_asm2bytes(self, self.arch, runasm, arm_thumb)
+    
 
+    # replace linux or windows syscall/api with custom api/syscall
     def set_syscall(self, syscall_cur, syscall_new):
         if self.ostype in (QL_LINUX, QL_MACOS, QL_FREEBSD):
-            self.dict_posix_syscall[syscall_cur] = syscall_new
+            self.commos.dict_posix_syscall[syscall_cur] = syscall_new
         elif self.ostype == QL_WINDOWS:
             self.set_api(syscall_cur, syscall_new)
 
 
+    # replace Windows API with custom syscall
     def set_api(self, api_name, api_func):
         if self.ostype == QL_WINDOWS:
-            self.user_defined_api[api_name] = api_func
+            self.commos.user_defined_api[api_name] = api_func
 
 
     def hook_code(self, callback, user_data=None, begin=1, end=0):
@@ -588,64 +644,93 @@ class Qiling:
         else:
             raise
 
-            # patch @code to memory address @addr
 
+    # patch @code to memory address @addr
     def patch(self, addr, code, file_name=b''):
         if file_name == b'':
             self.patch_bin.append((addr, code))
         else:
             self.patch_lib.append((addr, code, file_name.decode()))
+    
 
-    # read @size of bytes from memory address @addr
-    def mem_read(self, addr, size):
-        return self.uc.mem_read(addr, size)
+    # ql.register - read and write register 
+    def register(self, register_str, value= None):
+        if value is None:
+            return self.archfunc.get_register(register_str)
+        else:    
+            return self.archfunc.set_register(register_str, value)
 
-    # write @data to memory address @addr
-    def mem_write(self, addr, data):
-        return self.uc.mem_write(addr, data)
+    # ql.syscall - get syscall for all posix series
+    @property
+    def syscall(self):
+        return self.commos.get_syscall()
 
-    # get PC register
+    # ql.syscall_param - get syscall for all posix series
+    @property
+    def syscall_param(self):
+        return self.commos.get_syscall_param()
+
+    # ql.reg_pc - PC register name getter
     @property
     def reg_pc(self):
         return self.archfunc.get_reg_pc()
 
-    # get SP register
+    # ql.reg_sp - SP register name getter
     @property
     def reg_sp(self):
         return self.archfunc.get_reg_sp()
 
-    # get PC register value
+    # ql.reg_tables - Register table getter
+    @property
+    def reg_table(self):
+        return self.archfunc.get_reg_table()
+
+    # ql.reg_name - Register name converter getter
+    @property
+    def reg_name(self):
+        return self.archfunc.get_reg_name_str(self.uc_reg_name)
+
+    # ql.reg_name - Register name converter setter
+    @reg_name.setter
+    def reg_name(self, uc_reg):
+        self.uc_reg_name = uc_reg
+
+    # ql.pc - PC register value getter
     @property
     def pc(self):
         return self.archfunc.get_pc()
 
-    # pc.setter: set PC register
+    # ql.pc - PC register value setter
     @pc.setter
     def pc(self, value):
         self.archfunc.set_pc(value)
 
-    # get stack pointer register
+    # ql.sp - SP register value getter
     @property
     def sp(self):
         return self.archfunc.get_sp()
 
-    # sp.setter: set stack pointer register
+    # ql.sp - SP register value setter
     @sp.setter
     def sp(self, value):
         self.archfunc.set_sp(value)
 
+    # ql.output var getter
     @property
     def output(self):
         return self._output
 
+    # ql.output - output var setter eg. QL_OUT_DEFAULT and etc
     @output.setter
     def output(self, output):
         self._output = output_convert(output)
-
+    
+    # ql.platform - platform var = host os getter eg. QL_LINUX and etc
     @property
     def platform(self):
         return self._platform
 
+    # ql.platform - platform var = host os setter eg. QL_LINUX and etc
     @platform.setter
     def platform(self, value):
         if value == 'Linux':
@@ -661,73 +746,17 @@ class Qiling:
 
     def __enable_bin_patch(self):
         for addr, code in self.patch_bin:
-            self.uc.mem_write(self.loadbase + addr, code)
+            self.mem.write(self.loadbase + addr, code)
 
     def enable_lib_patch(self):
         for addr, code, filename in self.patch_lib:
-            self.uc.mem_write(self.__get_lib_base(filename) + addr, code)
+            self.mem.write(self.mem.get_lib_base(filename) + addr, code)
 
     def set_timeout(self, microseconds):
         self.timeout = microseconds
 
     def set_exit(self, until_addr):
         self.until_addr = until_addr
-
-    def insert_map_info(self, mem_s, mem_e, mem_p, mem_info):
-        tmp_map_info = []
-        insert_flag = 0
-        map_info = self.map_info
-        if len(map_info) == 0:
-            tmp_map_info.append([mem_s, mem_e, mem_p, mem_info])
-        else:
-            for s, e, p, info in map_info:
-                if e <= mem_s:
-                    tmp_map_info.append([s, e, p, info])
-                    continue
-                if s >= mem_e:
-                    if insert_flag == 0:
-                        insert_flag = 1
-                        tmp_map_info.append([mem_s, mem_e, mem_p, mem_info])
-                    tmp_map_info.append([s, e, p, info])
-                    continue
-                if s < mem_s:
-                    tmp_map_info.append([s, mem_s, mem_p, info])
-
-                if s == mem_s:
-                    pass
-
-                if insert_flag == 0:
-                    insert_flag = 1
-                    tmp_map_info.append([mem_s, mem_e, mem_p, mem_info])
-
-                if e > mem_e:
-                    tmp_map_info.append([mem_e, e, mem_p, info])
-
-                if e == mem_e:
-                    pass
-            if insert_flag == 0:
-                tmp_map_info.append([mem_s, mem_e, mem_p, mem_info])
-        map_info = []
-        map_info.append(tmp_map_info[0])
-
-        for s, e, p, info in tmp_map_info[1:]:
-            if s == map_info[-1][1] and info == map_info[-1][2]:
-                map_info[-1][1] = e
-            else:
-                map_info.append([s, e, p, info])
-
-        self.map_info = map_info
-
-    def show_map_info(self):
-        self.nprint("[+] Start      End        Perm.  Path\n")
-        for s, e, p, info in self.map_info:
-            self.nprint("[+] %08x - %08x - %s    %s\n" % (s, e, p, info))
-
-    def __get_lib_base(self, filename):
-        for s, e, p, info in self.map_info:
-            if os.path.split(info)[1] == filename:
-                return s
-        return -1
 
     def add_fs_mapper(self, fm, to):
         self.fs_mapper.append([fm, to])
@@ -738,7 +767,3 @@ class Qiling:
             td.stop()
             td.stop_event = stop_event
         self.uc.emu_stop()
-
-
-
-

@@ -27,7 +27,8 @@ def test_pe_win_x8664_hello():
 
 def test_pe_win_x86_hello():
     ql = Qiling(["../examples/rootfs/x86_windows/bin/x86_hello.exe"], "../examples/rootfs/x86_windows",
-                output="default", log_dir='.', log_split=True)
+                output="default", log_dir='.')
+    ql.log_split = True            
     ql.run()
     del ql
 
@@ -44,9 +45,9 @@ def test_pe_win_x86_gandcrab():
         print("Ok for now")
         ql.uc.emu_stop()
 
-    ql = Qiling(["../examples/rootfs/x86_windows/bin/GandCrab.bin"], "../examples/rootfs/x86_windows",
+    ql = Qiling(["../examples/rootfs/x86_windows/bin/GandCrab502.bin"], "../examples/rootfs/x86_windows",
                 output="debug")
-    ql.hook_address(stop, 0x10029ce0)
+    ql.hook_address(stop, 0x1001a3c6)
     ql.run()
     del ql
 
@@ -143,7 +144,7 @@ def test_pe_win_x86_crackme():
 
     def force_call_dialog_func(ql):
         # get DialogFunc address
-        lpDialogFunc = ql.unpack32(ql.mem_read(ql.sp - 0x8, 4))
+        lpDialogFunc = ql.unpack32(ql.mem.read(ql.sp - 0x8, 4))
         # setup stack for DialogFunc
         ql.stack_push(0)
         ql.stack_push(1001)
@@ -181,4 +182,4 @@ if __name__ == "__main__":
     test_pe_win_x8664_customapi()
     test_pe_win_x86_uselessdisk()
     test_pe_win_x86_crackme()
-    # test_pe_win_x86_gandcrab()
+    test_pe_win_x86_gandcrab()
