@@ -125,7 +125,7 @@ class Qiling:
         self.log_file = log_file
         # syscall filter for strace-like functionality
         self.strace_filter = None
-
+        self.log_file = log_file
         """
         Qiling Framework Core Engine
         """
