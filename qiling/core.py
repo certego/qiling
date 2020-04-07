@@ -123,6 +123,8 @@ class Qiling:
         self.shellcode_init = 0
         self.entry_point = 0
         self.log_file = log_file
+        # syscall filter for strace-like functionality
+        self.strace_filter = None
 
         """
         Qiling Framework Core Engine
@@ -151,6 +153,7 @@ class Qiling:
 
         # Looger's configuration
         _logger = ql_setup_logging_stream(self)
+
 
         if self.log_dir is not None and type(self.log_dir) == str:
 
@@ -212,9 +215,16 @@ class Qiling:
         define file is 32 or 64bit, and check file endian
         QL_ENDIAN_EL = Little Endian
         big endian is define during ql_elf_check_archtype
+
+        since there is no elf for shellcoder mode
+        judge archendian by whether bigendian set or not
         """
         self.archbit = ql_get_arch_bits(self.arch)
         if self.arch not in (QL_ENDINABLE):
+            self.archendian = QL_ENDIAN_EL
+        if self.shellcoder and self.bigendian == True:
+            self.archendian = QL_ENDIAN_EB
+        elif self.shellcoder:
             self.archendian = QL_ENDIAN_EL
 
         # based on CPU bit and set pointer size
@@ -252,20 +262,14 @@ class Qiling:
         self.load_os = load_os(self)
         self.load_os.loader()
 
-    def build_os_execution(self, function_name):
-        self.runtype = ql_get_os_module_function(self, "runner")
-        return ql_get_os_module_function(self, function_name)
-
-    def load_exec(self):
-        loader_file = self.build_os_execution("loader_file")
-        loader_file(self)
-
-    def shellcode(self):
-        self.__enable_bin_patch()
-        loader_shellcode = self.build_os_execution("loader_shellcode")
-        loader_shellcode(self)
 
     def run(self):
+
+        # setup strace filter for logger
+        if self.strace_filter != None and self.output == QL_OUT_DEFAULT:
+
+            self.log_file_fd.addFilter(Strace_filter(self.strace_filter))
+
         # debugger init
         if self.debugger is not None:
             try:
@@ -347,20 +351,29 @@ class Qiling:
     def asm2bytes(self, runasm, arm_thumb=None):
         return ql_asm2bytes(self, self.arch, runasm, arm_thumb)
     
-
-    # replace linux or windows syscall/api with custom api/syscall
+    """
+    replace linux or windows syscall/api with custom api/syscall
+    if replace function name is needed, first syscall must be available
+    - ql.set_syscall(0x04, my_syscall_write)
+    - ql.set_syscall("write", my_syscall_write)
+    """
     def set_syscall(self, syscall_cur, syscall_new):
         if self.ostype in (QL_POSIX):
-            syscall_name = "ql_syscall_" + str(syscall_cur)
-            self.comm_os.dict_posix_syscall[syscall_name] = syscall_new
+            if isinstance(syscall_cur, int):
+                self.comm_os.dict_posix_syscall_by_num[syscall_cur] = syscall_new
+            else:
+                syscall_name = "ql_syscall_" + str(syscall_cur)
+                self.comm_os.dict_posix_syscall[syscall_name] = syscall_new
         elif self.ostype == QL_WINDOWS:
             self.set_api(syscall_cur, syscall_new)
 
 
     # replace Windows API with custom syscall
-    def set_api(self, api_name, api_func):
+    def set_api(self, syscall_cur, syscall_new):
         if self.ostype == QL_WINDOWS:
-            self.load_os.user_defined_api[api_name] = api_func
+            self.load_os.user_defined_api[syscall_cur] = syscall_new
+        elif self.ostype in (QL_POSIX):
+            self.set_syscall(syscall_cur, syscall_new)
 
 
     def hook_code(self, callback, user_data=None, begin=1, end=0):
@@ -652,6 +665,11 @@ class Qiling:
             return self.archfunc.get_register(register_str)
         else:    
             return self.archfunc.set_register(register_str, value)
+
+    # ql.init_Uc - initialized unicorn engine
+    @property
+    def init_Uc(self):
+        return self.archfunc.get_Uc()
 
     # ql.syscall - get syscall for all posix series
     @property
