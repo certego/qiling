@@ -8,6 +8,7 @@ from qiling.os.utils import *
 from qiling.os.fncc import *
 from qiling.os.windows.utils import *
 from qiling.const import *
+from functools import wraps
 
 DWORD = 1
 UINT = 1
@@ -180,6 +181,7 @@ def winapi(cc, param_num=None, params=None):
     """
 
     def decorator(func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             ql = args[0]
             if ql.archtype== QL_X86:
