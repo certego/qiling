@@ -103,10 +103,10 @@ def ql_syscall_old_mmap(ql, struct_mmap_args, *args, **kw):
     # is32bit or is64bit value not by arch
     MAP_ANONYMOUS = 32
 
-    if (ql.arch == QL_ARM64) or (ql.arch == QL_X8664):
+    if (ql.archtype== QL_ARM64) or (ql.archtype== QL_X8664):
         mmap_fd = ql.unpack64(ql.pack64(mmap_fd))
 
-    elif (ql.arch == QL_MIPS32):
+    elif (ql.archtype== QL_MIPS32):
         mmap_fd = ql.unpack32s(ql.mem.read(mmap_fd, 4))
         mmap_offset = ql.unpack32(ql.mem.read(mmap_offset, 4))
         MAP_ANONYMOUS=2048
@@ -185,10 +185,10 @@ def ql_syscall_mmap(ql, mmap_addr, mmap_length, mmap_prot, mmap_flags, mmap_fd, 
     # is32bit or is64bit value not by arch
     MAP_ANONYMOUS = 32
 
-    if (ql.arch == QL_ARM64) or (ql.arch == QL_X8664):
+    if (ql.archtype== QL_ARM64) or (ql.archtype== QL_X8664):
         mmap_fd = ql.unpack64(ql.pack64(mmap_fd))
 
-    elif (ql.arch == QL_MIPS32):
+    elif (ql.archtype== QL_MIPS32):
         mmap_fd = ql.unpack32s(ql.mem.read(mmap_fd, 4))
         mmap_pgoffset = ql.unpack32(ql.mem.read(mmap_pgoffset, 4))
         MAP_ANONYMOUS=2048
@@ -199,10 +199,12 @@ def ql_syscall_mmap(ql, mmap_addr, mmap_length, mmap_prot, mmap_flags, mmap_fd, 
     mmap_base = mmap_addr
     need_mmap = True
 
+    
     if mmap_addr != 0 and (mmap_addr < ql.mmap_start):
+        ql.dprint(0, "[+] mmap_addr 0x%x < ql.mmap_start 0x%x" %(mmap_addr, ql.mmap_start)) 
         need_mmap = False
 
-        # initial ql.mmap_start
+    # initial ql.mmap_start
     if mmap_addr == 0:
         mmap_base = ql.mmap_start
         ql.mmap_start = mmap_base + ((mmap_length + 0x1000 - 1) // 0x1000) * 0x1000
@@ -218,11 +220,15 @@ def ql_syscall_mmap(ql, mmap_addr, mmap_length, mmap_prot, mmap_flags, mmap_fd, 
             ql.mem.map(mmap_base, ((mmap_length + 0x1000 - 1) // 0x1000) * 0x1000)
         except:
             raise QlMemoryMappedError("[!] mapping needed but fail")
-
-    # FIXME: Big Endian Patch, write is failing
-    ql.mem.write(mmap_base, b'\x00' * (((mmap_length + 0x1000 - 1) // 0x1000) * 0x1000))
-
-
+ 
+    ql.dprint(0, "[+] mmap_base 0x%x  length 0x%x" %(mmap_base, (((mmap_length + 0x1000 - 1) // 0x1000) * 0x1000)))
+    
+    # FIXME: MIPS32 Big Endian
+    try:
+        ql.mem.write(mmap_base, b'\x00' * (((mmap_length + 0x1000 - 1) // 0x1000) * 0x1000))
+    except:
+        pass  
+    
     mem_s = mmap_base
     mem_e = mmap_base + ((mmap_length + 0x1000 - 1) // 0x1000) * 0x1000
     mem_info = '[mapped]'
@@ -249,7 +255,6 @@ def ql_syscall_mmap(ql, mmap_addr, mmap_length, mmap_prot, mmap_flags, mmap_fd, 
 
     ql.mem.add_mapinfo(mem_s, mem_e, mem_p, mem_info)
 
-
     ql.nprint("mmap(0x%x, 0x%x, 0x%x, 0x%x, %d, %d) = 0x%x" % (mmap_addr, mmap_length, mmap_prot, mmap_flags,
                                                                mmap_fd, mmap_pgoffset, mmap_base))
     regreturn = mmap_base
@@ -264,10 +269,10 @@ def ql_syscall_mmap2(ql, mmap2_addr, mmap2_length, mmap2_prot, mmap2_flags, mmap
 
     MAP_ANONYMOUS=32
 
-    if (ql.arch == QL_ARM64) or (ql.arch == QL_X8664):
+    if (ql.archtype== QL_ARM64) or (ql.archtype== QL_X8664):
         mmap2_fd = ql.unpack64(ql.pack64(mmap2_fd))
 
-    elif (ql.arch == QL_MIPS32):
+    elif (ql.archtype== QL_MIPS32):
         mmap2_fd = ql.unpack32s(ql.mem.read(mmap2_fd, 4))
         mmap2_pgoffset = ql.unpack32(ql.mem.read(mmap2_pgoffset, 4)) * 4096
         MAP_ANONYMOUS=2048

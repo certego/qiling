@@ -5,15 +5,15 @@
 from unicorn import *
 from unicorn.arm64_const import *
 from struct import pack
-from .arch import Arch
+from .arch import QlArch
 
 from qiling.const import *
 from unicorn import *
 from unicorn.arm_const import *
 
-class ARM64(Arch):
+class QlArchARM64(QlArch):
     def __init__(self, ql):
-        super(ARM64, self).__init__(ql)
+        super(QlArchARM64, self).__init__(ql)
 
 
     def stack_push(self, value):
