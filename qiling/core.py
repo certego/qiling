@@ -302,6 +302,7 @@ class Qiling:
 
     def set_log_file(self, log_file):
         self.log_file = log_file
+        _logger = ql_setup_logging_stream(self)
         _logger = ql_setup_logging_file(self.output, self.log_file, _logger)
 
         self.log_file_fd = _logger
