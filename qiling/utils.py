@@ -323,6 +323,7 @@ def ql_setup_logger(logger_name=None):
         logger_name = 'qiling_%s' % _counter
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
+    logger.propagate = False
     return logger
 
 
