@@ -181,15 +181,15 @@ def ql_syscall_faccessat(ql, faccessat_dfd, faccessat_filename, faccessat_mode, 
     ql.nprint("facccessat (%d, 0x%x, 0x%x) = %d" %(faccessat_dfd, faccessat_filename, faccessat_mode, regreturn))
 
     if regreturn == -1:
-        ql.dprint(0, "[!] File Not Found or Skipped: %s" % access_path)
+        ql.dprint(D_INFO, "[!] File Not Found or Skipped: %s" % access_path)
     else:
-        ql.dprint(0, "[+] File Found: %s" % access_path)
+        ql.dprint(D_INFO, "[+] File Found: %s" % access_path)
 
 
 def ql_syscall_lseek(ql, lseek_fd, lseek_ofset, lseek_origin, *args, **kw):
     lseek_ofset = ql.unpacks(ql.pack(lseek_ofset))
     regreturn = 0
-    ql.dprint(0, "lseek(%d, 0x%x, 0x%x) = %d" % (lseek_fd, lseek_ofset, lseek_origin, regreturn))
+    ql.dprint(D_INFO, "lseek(%d, 0x%x, 0x%x) = %d" % (lseek_fd, lseek_ofset, lseek_origin, regreturn))
     try:
         regreturn = ql.file_des[lseek_fd].lseek(lseek_ofset, lseek_origin)
     except OSError:
@@ -224,20 +224,20 @@ def ql_syscall_brk(ql, brk_input, *args, **kw):
     if brk_input != 0:
         new_brk_addr = ((brk_input + 0xfff) // 0x1000) * 0x1000
 
-        if brk_input > ql.brk_address: # increase current brk_address if brk_input is greater
-            ql.mem.map(ql.brk_address, new_brk_addr - ql.brk_address)
-            ql.mem.add_mapinfo(ql.brk_address, new_brk_addr, "rw-", "[mapped]")
+        if brk_input > ql.loader.brk_address: # increase current brk_address if brk_input is greater
+            ql.mem.map(ql.loader.brk_address, new_brk_addr - ql.loader.brk_address)
+            ql.mem.add_mapinfo(ql.loader.brk_address, new_brk_addr, "rw-", "[mapped]")
 
-        elif brk_input < ql.brk_address: # shrink current bkr_address to brk_input if its smaller
-            ql.mem.unmap(new_brk_addr, ql.brk_address - new_brk_addr)
-            ql.mem.del_mapinfo(new_brk_addr, ql.brk_address)
+        elif brk_input < ql.loader.brk_address: # shrink current bkr_address to brk_input if its smaller
+            ql.mem.unmap(new_brk_addr, ql.loader.brk_address - new_brk_addr)
+            ql.mem.del_mapinfo(new_brk_addr, ql.loader.brk_address)
 
-        ql.brk_address = new_brk_addr
+        ql.loader.brk_address = new_brk_addr
 
-    regreturn = ql.brk_address
+    regreturn = ql.loader.brk_address
 
     ql_definesyscall_return(ql, regreturn)
-    ql.dprint(0, "[+] brk return(0x%x)" % regreturn)
+    ql.dprint(D_INFO, "[+] brk return(0x%x)" % regreturn)
 
 
 def ql_syscall_access(ql, access_path, access_mode, *args, **kw):
@@ -255,9 +255,9 @@ def ql_syscall_access(ql, access_path, access_mode, *args, **kw):
 
     ql.nprint("access(%s, 0x%x) = %d " % (relative_path, access_mode, regreturn))
     if regreturn == 0:
-        ql.dprint(0, "[+] File found: %s" % relative_path)
+        ql.dprint(D_INFO, "[+] File found: %s" % relative_path)
     else:
-        ql.dprint(0, "[!] No such file or directory")
+        ql.dprint(D_INFO, "[!] No such file or directory")
 
 
 def ql_syscall_close(ql, close_fd, *args, **kw):
@@ -302,8 +302,8 @@ def ql_syscall_read(ql, read_fd, read_buf, read_len, *args, **kw):
     ql.nprint("read(%d, 0x%x, 0x%x) = %d" % (read_fd, read_buf, read_len, regreturn))
 
     if data:
-        ql.dprint(1, "[+] read() CONTENT:")
-        ql.dprint(1, "%s" % data)
+        ql.dprint(D_INFO, "[+] read() CONTENT:")
+        ql.dprint(D_INFO, "%s" % data)
     ql_definesyscall_return(ql, regreturn)
 
 
@@ -315,8 +315,8 @@ def ql_syscall_write(ql, write_fd, write_buf, write_count, *args, **kw):
         buf = ql.mem.read(write_buf, write_count)
         ql.nprint("write(%d,%x,%i) = %d" % (write_fd, write_buf, write_count, regreturn))
         if buf:
-            ql.dprint(1, "[+] write() CONTENT:")
-            ql.dprint(1, "%s" % buf)
+            ql.dprint(D_INFO, "[+] write() CONTENT:")
+            ql.dprint(D_INFO, "%s" % buf)
         ql.file_des[write_fd].write(buf)
         regreturn = write_count
     except:
@@ -490,8 +490,9 @@ def ql_syscall_execve(ql, execve_pathname, execve_argv, execve_envp, *args, **kw
         ql.env              = env
         ql.path             = real_path
         ql.mem.map_info     = []
-        
+
         ql.os.load()
+        ql.loader.__init__(ql)
         ql.run()
 
     ql.nprint("execve(%s, [%s], [%s])"% (pathname, ', '.join(argv), ', '.join([key + '=' + value for key, value in env.items()])))
@@ -594,7 +595,6 @@ def ql_syscall_truncate(ql, path, length, *args, **kw):
 
 def ql_syscall_ftruncate(ql, ftrunc_fd, ftrunc_length, *args, **kw):
     real_path = ql.file_des[ftrunc_fd].name
-    path = real_path.split('/')[-1]
     st_size = os.stat(real_path).st_size
 
     try:
@@ -625,7 +625,7 @@ def ql_syscall_unlink(ql, unlink_pathname, *args, **kw):
             os.unlink(real_path)
             regreturn = 0
         except FileNotFoundError:
-            ql.dprint(0, '[!] No such file or directory')
+            ql.dprint(D_INFO, '[!] No such file or directory')
             regreturn = -1
         except:
             regreturn = -1
@@ -637,7 +637,7 @@ def ql_syscall_unlink(ql, unlink_pathname, *args, **kw):
 
 
 def ql_syscall_unlinkat(ql, dirfd, pathname, flag, *args, **kw):
-    # fix me. dirfd(relative path) not implement.
+    #FIXME dirfd(relative path) not implement.
     file_path = ql_read_string(ql, pathname)
     real_path = ql_transform_to_real_path(ql, file_path)
     ql.nprint("unlinkat(%d, %s, 0%o)" % (dirfd, real_path, flag))
@@ -645,7 +645,7 @@ def ql_syscall_unlinkat(ql, dirfd, pathname, flag, *args, **kw):
         os.unlink(real_path)
         regreturn = 0
     except FileNotFoundError:
-        ql.dprint(0, "[!] No such file or directory")
+        ql.dprint(D_INFO, "[!] No such file or directory")
         regreturn = -1
     except:
         regreturn = -1
@@ -699,6 +699,6 @@ def ql_syscall_getdents(ql, fd, dirp, count, *args, **kw):
         regreturn = 0
 
     ql.nprint("getdents(%d, 0x%x, 0x%x) = %d" % (fd, dirp, count, regreturn))
-    ql.dprint(0, "[+] getdents(%d, /* %d entries */, 0x%x) = %d" % (fd, _ent_count, count, regreturn))
+    ql.dprint(D_INFO, "[+] getdents(%d, /* %d entries */, 0x%x) = %d" % (fd, _ent_count, count, regreturn))
     ql_definesyscall_return(ql, regreturn)
 

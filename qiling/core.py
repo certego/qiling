@@ -3,7 +3,7 @@
 # Cross Platform and Multi Architecture Advanced Binary Emulation Framework
 # Built on top of Unicorn emulator (www.unicorn-engine.org) 
 
-import sys, struct, platform, importlib
+import sys, struct, platform, ntpath
 import os as pyos
 from unicorn import *
 
@@ -12,11 +12,11 @@ from qiling.os.posix.filestruct import *
 from qiling.exception import *
 from qiling.utils import *
 from qiling.os.utils import *
+from qiling.loader.utils import *
 from qiling.arch.utils import *
-from qiling.os.linux.thread import *
+from qiling.os.thread import *
 from qiling.debugger.utils import *
 from qiling.os.memory import QlMemoryManager
-
 
 __version__ = "0.9"
 
@@ -27,7 +27,6 @@ def catch_KeyboardInterrupt(ql):
             try:
                 return func(*args, **kw)
             except BaseException as e:
-                # ql.dprint(0, "Received a request from the user to stop!")
                 ql.stop(stop_event=THREAD_EVENT_UNEXECPT_EVENT)
                 ql.internal_exception = e
 
@@ -52,14 +51,14 @@ class Qiling:
             stdout=0,
             stderr=0,
             output=None,
-            verbose=0,
+            verbose=1,
             log_console=True,
             log_dir=None,
             mmap_start=0,
             stack_address=0,
             stack_size=0,
             interp_base=0,
-            log_file=None
+            append = None
     ):
         # Define during ql=Qiling()
         self.output = output
@@ -84,8 +83,6 @@ class Qiling:
         self.archbit = ''
         self.path = ''
         self.entry_point = 0
-        self.new_stack = 0
-        self.brk_address = 0
         self.shellcode_init = 0
         self.file_des = []
         self.stdin = ql_file('stdin', sys.stdin.fileno())
@@ -96,11 +93,9 @@ class Qiling:
         self.patch_bin = []
         self.patch_lib = []
         self.patched_lib = []
-        self.loadbase = 0
         self.timeout = 0
         self.until_addr = 0
         self.byte = 0
-        self.currentpath = pyos.getcwd()
         self.log_file_fd = None
         self.current_path = '/'
         self.fs_mapper = []
@@ -111,7 +106,7 @@ class Qiling:
         self.global_thread_id = 0
         self.debugger = None
         self.automatize_input = False
-        self.config = None
+        self.profile = None
         # due to the instablity of multithreading, added a swtich for multithreading. at least for MIPS32EL for now
         self.multithread = False
         self.thread_management = None
@@ -124,15 +119,13 @@ class Qiling:
         self.root = True
         self.log_split = False
         self.shellcode_init = 0
-        self.entry_point = 0
-        self.log_file = log_file
         # syscall filter for strace-like functionality
         self.strace_filter = None
-        self.log_file = log_file
+        # generic append function, eg log file
+        self.append = append
         """
         Qiling Framework Core Engine
         """
-
         # ostype string - int convertion
         if self.shellcoder:
             if (self.ostype and type(self.ostype) == str) and (self.archtype and type(self.archtype) == str):
@@ -153,26 +146,18 @@ class Qiling:
             elif not pyos.path.exists(str(self.filename[0])) or not pyos.path.exists(self.rootfs):
                 raise QlErrorFileNotFound("[!] Target binary or rootfs not found")
 
+
+        if self.shellcoder:
+            self.targetname = "qilingshellcode"
+        else:    
+            self.targetname = ntpath.basename(self.filename[0])
+
         # Looger's configuration
         _logger = ql_setup_logging_stream(self)
-
         if self.log_dir is not None and type(self.log_dir) == str:
-
-            self.log_dir = pyos.path.join(self.rootfs, self.log_dir)
-            if not pyos.path.exists(self.log_dir):
-                pyos.makedirs(self.log_dir, 0o755)
-            if self.log_file is None:
-                pid = pyos.getpid()
-                # Is better to call the logfile as the binary we are testing instead of a pid with no logical value
-
-                self.log_file = pyos.path.join(self.log_dir, self.filename[0].split("/")[-1]) + "_" + str(pid)
-            else:
-                self.log_file = pyos.path.join(self.log_dir, self.log_file)
-
-            _logger = ql_setup_logging_file(self.output, self.log_file, _logger)
-
+            _logger = ql_setup_logging_env(self, _logger)    
         self.log_file_fd = _logger
-
+            
         # OS dependent configuration for stdio
         if self.ostype in (QL_LINUX, QL_FREEBSD, QL_MACOS):
             if stdin != 0:
@@ -192,10 +177,6 @@ class Qiling:
             for _ in range(256):
                 self.sigaction_act.append(0)
 
-        # define analysis enviroment profile
-        self.config = pyos.path.join(pyos.path.dirname(pyos.path.abspath(__file__)), "profiles",
-                                     ql_ostype_convert_str(self.ostype) + ".ql")
-
         # double check supported architecture
         if not ql_is_valid_arch(self.archtype):
             raise QlErrorArch("[!] Invalid Arch")
@@ -214,7 +195,7 @@ class Qiling:
         if type(self.verbose) != int or self.verbose > 99 and (
                 self.verbose > 0 and self.output not in (QL_OUT_DEBUG, QL_OUT_DUMP)):
             raise QlErrorOutput("[!] verbose required input as int and less than 99")
-
+        
         """
         Define file is 32 or 64bit and check file endian
         QL_ENDIAN_EL = Little Endian || QL_ENDIAN_EB = Big Endian
@@ -238,7 +219,7 @@ class Qiling:
 
         """
         Load memory module
-        FIXME: We need to refactor this
+        FIXME: We need to refactor this, maybe
         """
         if self.archbit == 64:
             max_addr = 0xFFFFFFFFFFFFFFFF
@@ -246,21 +227,30 @@ class Qiling:
             max_addr = 0xFFFFFFFF
         try:
             self.mem = QlMemoryManager(self, max_addr)
+
         except:
             raise QlErrorArch("[!] Cannot load Memory Management module")
-
         """
         Load architecture's and os module
         ql.pc, ql.sp and etc
         """
-
         self.arch = ql_arch_setup(self)
+
+        """
+        Load os module
+        """
         self.os = ql_os_setup(self)
+
+        """
+        Load the loader
+        """
+        self.loader = ql_loader_setup(self)
+
+
 
     def run(self):
         # setup strace filter for logger
         if self.strace_filter != None and self.output == QL_OUT_DEFAULT:
-
             self.log_file_fd.addFilter(Strace_filter(self.strace_filter))
 
         # debugger init
@@ -270,9 +260,17 @@ class Qiling:
                 remotedebugsrv, ip, port = self.debugger.split(':')
             except:
                 ip, port = '', ''
+
+            remotedebugsrv = "gdb"
+            
+            try:
                 ip, port = self.debugger.split(':')
                 # If only ip:port is defined, remotedebugsrv is always gdb
-                remotedebugsrv = "gdb"
+            except:
+                if ip is None:
+                    ip = "127.0.0.0"
+                if port is None:
+                    port = "9999" 
 
             remotedebugsrv = debugger_convert(remotedebugsrv)
 
@@ -326,15 +324,15 @@ class Qiling:
             elif isinstance(fd, logging.StreamHandler):
                 fd.flush()
 
-    # debug print out, always use with verbose level with dprint(0,"helloworld")
+    # debug print out, always use with verbose level with dprint(D_INFO,"helloworld")
     def dprint(self, level, *args, **kw):
         try:
             self.verbose = int(self.verbose)
         except:
-            raise QlErrorOutput("[!] Verbose muse be int")
 
-        if type(self.verbose) != int or self.verbose > 99 or (
-                self.verbose > 0 and self.output not in (QL_OUT_DEBUG, QL_OUT_DUMP)):
+            raise QlErrorOutput("[!] Verbose muse be int")    
+        
+        if type(self.verbose) != int or self.verbose > 99 or (self.verbose > 1 and self.output not in (QL_OUT_DEBUG, QL_OUT_DUMP)):
             raise QlErrorOutput("[!] Verbose > 1 must use with QL_OUT_DEBUG or else ql.verbose must be 0")
 
         if self.output == QL_OUT_DUMP:
@@ -578,6 +576,9 @@ class Qiling:
 
     def pack64(self, x):
         return struct.pack('Q', x)
+    
+    def pack64s(self, x):
+        return struct.pack('q', x)
 
     def unpack64s(self, x):
         return struct.unpack('q', x)[0]
@@ -626,6 +627,14 @@ class Qiling:
             return self.pack64(data)
         elif self.archbit == 32:
             return self.pack32(data)
+        else:
+            raise
+
+    def packs(self, data):
+        if self.archbit == 64:
+            return self.pack64s(data)
+        elif self.archbit == 32:
+            return self.pack32s(data)
         else:
             raise
 
@@ -735,7 +744,7 @@ class Qiling:
 
     def __enable_bin_patch(self):
         for addr, code in self.patch_bin:
-            self.mem.write(self.loadbase + addr, code)
+            self.mem.write(self.loader.loadbase + addr, code)
 
     def enable_lib_patch(self):
         for addr, code, filename in self.patch_lib:

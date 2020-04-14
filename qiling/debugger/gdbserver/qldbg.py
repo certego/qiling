@@ -3,6 +3,8 @@
 # Cross Platform and Multi Architecture Advanced Binary Emulation Framework
 # Built on top of Unicorn emulator (www.unicorn-engine.org)
 
+from qiling.const import *
+
 class Qldbg(object):
     def __init__(self):
         self.current_address = 0x0
@@ -56,8 +58,8 @@ class Qldbg(object):
                 self.last_bp = 0
             self.has_soft_bp = hit_soft_bp
             if self.current_address + size == self.exit_point:
-                self.ql.dprint(0, "gdb> emulation entrypoint at 0x%x" % (self.entry_point))
-                self.ql.dprint(0, "gdb> emulation exitpoint at 0x%x" % (self.exit_point))
+                self.ql.dprint(D_INFO, "gdb> emulation entrypoint at 0x%x" % (self.entry_point))
+                self.ql.dprint(D_INFO, "gdb> emulation exitpoint at 0x%x" % (self.exit_point))
         except KeyboardInterrupt as ex:
             self.ql.nprint("gdb> Paused at 0x%x, instruction size = %u\n" % (address, size))
             ql.stop()
@@ -90,11 +92,14 @@ class Qldbg(object):
                     'memory': {},
                     'regs': {}
                 }
+                
                 map_list = self.mapping
                 for maps in map_list:
                     map_address = int(maps[0], 16)
                     map_len = maps[1]
-                    self.entry_context['memory'][map_address] = bytes(self.ql.mem.read(map_address, map_len))
+
+                    if map_address and self.ql.mem.is_mapped(map_address,map_len) == True:
+                        self.entry_context['memory'][map_address] = bytes(self.ql.mem.read(map_address, map_len))
 
                 for r in self.ql.reg_table:
                     try:

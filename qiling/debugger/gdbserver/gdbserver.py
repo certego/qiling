@@ -49,7 +49,7 @@ class GDBSERVERsession(object):
         self.gdb          = qldbg.Qldbg()
         self.gdb.initialize(self.ql, exit_point=exit_point, mappings=mappings)
         if self.ql.ostype in (QL_LINUX, QL_FREEBSD):
-            self.gdb.bp_insert(self.ql.elf_entry)
+            self.gdb.bp_insert(self.ql.loader.elf_entry)
         else:
             self.gdb.bp_insert(self.ql.entry_point)
 
@@ -127,7 +127,7 @@ class GDBSERVERsession(object):
 
             def handle_c(subcmd):
                 self.gdb.resume_emu(self.ql.register(self.pc_reg))
-                if self.gdb.bp_list in ([self.ql.elf_entry], [self.ql.entry_point]):
+                if self.gdb.bp_list in ([self.ql.loader.elf_entry], [self.ql.entry_point]):
                     self.send("W00")
                 else:
                     self.send(('S%.2x' % GDB_SIGNAL_TRAP))
@@ -393,7 +393,7 @@ class GDBSERVERsession(object):
                         exit(1)
 
                 elif subcmd.startswith('Xfer:threads:read::0,'):
-                    file_contents = ("<threads>\r\n<thread id=\"2048\" core=\"3\" name=\"" + str(self.ql.filename[0].split('/')[-1]) + "\"/>\r\n</threads>")
+                    file_contents = ("<threads>\r\n<thread id=\"2048\" core=\"3\" name=\"" + self.ql.targetname + "\"/>\r\n</threads>")
                     self.send("l" + file_contents)
 
                 elif subcmd.startswith('Xfer:auxv:read::'):
@@ -454,20 +454,20 @@ class GDBSERVERsession(object):
                             ID_AT_NULL      = "00000000"
                             AT_NULL         = "00000000"
 
-                        AT_HWCAP    = self.ql.addr_to_str(self.ql.elf_hwcap)  # mock cpuid 0x1f8bfbff
-                        AT_PAGESZ   = self.ql.addr_to_str(self.ql.elf_pagesz)  # System page size, fixed in qiling
-                        AT_PHDR     = self.ql.addr_to_str(self.ql.elf_phdr)  # Program headers for program
-                        AT_PHENT    = self.ql.addr_to_str(self.ql.elf_phent)  # Size of program header entry
-                        AT_PHNUM    = self.ql.addr_to_str(self.ql.elf_phnum)  # Number of program headers
-                        AT_BASE     = self.ql.addr_to_str(self.ql.interp_base)  # Base address of interpreter
-                        AT_FLAGS    = self.ql.addr_to_str(self.ql.elf_flags)
-                        AT_ENTRY    = self.ql.addr_to_str(self.ql.elf_entry)  # Entry point of program
-                        AT_UID      = self.ql.addr_to_str(self.ql.elf_guid)  # UID at 1000 fixed in qiling
-                        AT_EUID     = self.ql.addr_to_str(self.ql.elf_guid)  # EUID at 1000 fixed in qiling
-                        AT_GID      = self.ql.addr_to_str(self.ql.elf_guid)  # GID at 1000 fixed in qiling
-                        AT_EGID     = self.ql.addr_to_str(self.ql.elf_guid)  # EGID at 1000 fixed in qiling
-                        AT_RANDOM   = self.ql.addr_to_str(self.ql.randstraddr)  # Address of 16 random bytes
-                        AT_PLATFORM = self.ql.addr_to_str(self.ql.cpustraddr)  # String identifying platform
+                        AT_HWCAP    = self.ql.addr_to_str(self.ql.loader.elf_hwcap)  # mock cpuid 0x1f8bfbff
+                        AT_PAGESZ   = self.ql.addr_to_str(self.ql.loader.elf_pagesz)  # System page size, fixed in qiling
+                        AT_PHDR     = self.ql.addr_to_str(self.ql.loader.elf_phdr)  # Program headers for program
+                        AT_PHENT    = self.ql.addr_to_str(self.ql.loader.elf_phent)  # Size of program header entry
+                        AT_PHNUM    = self.ql.addr_to_str(self.ql.loader.elf_phnum)  # Number of program headers
+                        AT_BASE     = self.ql.addr_to_str(self.ql.loader.interp_base)  # Base address of interpreter
+                        AT_FLAGS    = self.ql.addr_to_str(self.ql.loader.elf_flags)
+                        AT_ENTRY    = self.ql.addr_to_str(self.ql.loader.elf_entry)  # Entry point of program
+                        AT_UID      = self.ql.addr_to_str(self.ql.loader.elf_guid)  # UID at 1000 fixed in qiling
+                        AT_EUID     = self.ql.addr_to_str(self.ql.loader.elf_guid)  # EUID at 1000 fixed in qiling
+                        AT_GID      = self.ql.addr_to_str(self.ql.loader.elf_guid)  # GID at 1000 fixed in qiling
+                        AT_EGID     = self.ql.addr_to_str(self.ql.loader.elf_guid)  # EGID at 1000 fixed in qiling
+                        AT_RANDOM   = self.ql.addr_to_str(self.ql.loader.randstraddr)  # Address of 16 random bytes
+                        AT_PLATFORM = self.ql.addr_to_str(self.ql.loader.cpustraddr)  # String identifying platform
 
                         auxvdata_c = (
                                         ANNEX + AT_SYSINFO_EHDR +
@@ -559,7 +559,7 @@ class GDBSERVERsession(object):
                         else:
                             self.lib_abspath = ql_transform_to_real_path(self.ql, self.lib_path) 
 
-                        self.ql.dprint(0, "gdb> target file: %s" % (self.lib_abspath))
+                        self.ql.dprint(D_INFO, "gdb> target file: %s" % (self.lib_abspath))
 
                         if os.path.exists(self.lib_abspath):
                             self.send("F5")
@@ -616,7 +616,7 @@ class GDBSERVERsession(object):
                     exit(1)
 
                 elif subcmd.startswith('Cont'):
-                    self.ql.dprint(0, "gdb> Cont command received: %s" % subcmd)
+                    self.ql.dprint(D_INFO, "gdb> Cont command received: %s" % subcmd)
                     if subcmd == 'Cont?':
                         if self.en_vcont == True:
                             self.send('vCont;c;C;s;S')
@@ -706,7 +706,7 @@ class GDBSERVERsession(object):
                 self.send('')
                 self.ql.nprint("gdb> Command not supported: %s\n" %(cmd))
                 continue
-            self.ql.dprint(0, "gdb> received: %s%s" % (cmd, subcmd))
+            self.ql.dprint(D_INFO, "gdb> received: %s%s" % (cmd, subcmd))
             commands[cmd](subcmd)
 
         self.close()
@@ -754,7 +754,7 @@ class GDBSERVERsession(object):
             self.clientsocket.send(b'$%s#%.2x' % (msg, checksum(msg)))
             self.netout.flush()
 
-        self.ql.dprint(0, "gdb> send: $%s#%.2x" % (msg, checksum(msg)))
+        self.ql.dprint(D_INFO, "gdb> send: $%s#%.2x" % (msg, checksum(msg)))
 
     def send_raw(self, r):
         self.netout.write(r)
