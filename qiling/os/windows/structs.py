@@ -68,6 +68,7 @@ class TEB:
         s += self.ql.pack(self.HardErrorMode)  # 0x40
         return s
 
+# https://www.geoffchappell.com/studies/windows/win32/ntdll/structs/peb/index.htm
 
 class PEB:
     def __init__(self, ql, base=0,
@@ -230,12 +231,12 @@ class LdrDataTableEntry:
         s += self.ql.pack(self.SizeOfImage)  # 0x20
         s += self.ql.pack16(self.FullDllName['Length'])  # 0x24
         s += self.ql.pack16(self.FullDllName['MaximumLength'])  # 0x26
-        if self.ql.archtype== QL_X8664:
+        if self.ql.archtype== QL_ARCH.X8664:
             s += self.ql.pack32(0)
         s += self.ql.pack(self.FullDllName['BufferPtr'])  # 0x28
         s += self.ql.pack16(self.BaseDllName['Length'])
         s += self.ql.pack16(self.BaseDllName['MaximumLength'])
-        if self.ql.archtype== QL_X8664:
+        if self.ql.archtype== QL_ARCH.X8664:
             s += self.ql.pack32(0)
         s += self.ql.pack(self.BaseDllName['BufferPtr'])
         s += self.ql.pack(self.Flags)
@@ -318,7 +319,7 @@ class Token:
                                                                                     byteorder='little')
         # We create a Sid Structure, set its handle and return the value
         sid = Sid(ql)
-        handle = Handle(sid=sid)
+        handle = Handle(obj=sid)
         
         # FIXME : self.ql.os this is ugly, should be self.os.thread_manager
         self.ql.os.handle_manager.append(handle)

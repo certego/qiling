@@ -17,6 +17,13 @@ ERROR_MORE_DATA = 0xEA
 ERROR_INVALID_HANDLE = 0x6
 # ...
 
+# https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
+STATUS_SUCCESS = 0
+# ...
+STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
+STATUS_INVALID_PARAMETER = 0xC000000D
+STATUS_INVALID_HANDLE = 0xC0000008
+# ...
 
 INVALID_HANDLE_VALUE = -1
 
@@ -525,8 +532,12 @@ SYSTEMS_VERSION = {
     "610": "Windows Server 2008 R2",
 
     "601": "Windows Vista",
-    "600": "Windows Server 2008"
-    # ..
+    "600": "Windows Server 2008",
+
+    # ...
+
+    "510": "Windows XP"
+    # ...
 }
 
 # Mapper for ordinal syscalls
@@ -535,3 +546,35 @@ Mapper = {
         175: "SHGetSpecialFolderPathW"
     }
 }
+
+MAXUSHORT = 0xffff
+
+# https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfiletype
+FILE_TYPE_CHAR = 0x2
+FILE_TYPE_DISK = 0x1
+FILE_TYPE_PIPE = 0x3
+FILE_TYPE_REMOTE = 0x800
+FILE_TYPE_UNKNOWN = 0x0
+
+# https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-isprocessorfeaturepresent
+PF_XSAVE_ENABLED = 0x17
+# ...
+
+
+# https://docs.microsoft.com/en-us/windows/win32/procthread/zwqueryinformationprocess
+ProcessBasicInformation = 0
+ProcessDebugPort = 7
+ProcessWow64Information = 26
+ProcessImageFileName = 27
+ProcessBreakOnTermination = 29
+ProcessProtectionInformation = 61
+ProcessDebugObjectHandle = 0x1E
+ProcessDebugFlags = 0x1F
+
+# https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/ps/psquery/class.htm
+ThreadBasicInformation = 0x0
+ThreadTimes = 0x1
+ThreadPriority = 0x2
+# ...
+ThreadHideFromDebugger = 0x11
+# ...

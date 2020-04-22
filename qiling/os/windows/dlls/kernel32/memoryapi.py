@@ -6,7 +6,7 @@
 import struct
 import time
 from qiling.os.windows.const import *
-from qiling.os.fncc import *
+from qiling.os.const import *
 from qiling.os.windows.fncc import *
 from qiling.os.windows.utils import *
 from qiling.os.windows.thread import *
@@ -26,9 +26,9 @@ from qiling.exception import *
     "flAllocationType": DWORD,
     "flProtect": DWORD
 })
-def hook_VirtualAlloc(self, address, params):
+def hook_VirtualAlloc(ql, address, params):
     dwSize = params["dwSize"]
-    addr = self.ql.os.heap.mem_alloc(dwSize)
+    addr = ql.os.heap.mem_alloc(dwSize)
     return addr
 
 
@@ -42,9 +42,9 @@ def hook_VirtualAlloc(self, address, params):
     "dwSize": SIZE_T,
     "dwFreeType": DWORD
 })
-def hook_VirtualFree(self, address, params):
+def hook_VirtualFree(ql, address, params):
     lpAddress = params["lpAddress"]
-    addr = self.ql.os.heap.mem_free(lpAddress)
+    ql.os.heap.mem_free(lpAddress)
     return 1
 
 
@@ -60,5 +60,5 @@ def hook_VirtualFree(self, address, params):
     "flNewProtect": UINT,
     "lpflOldProtect": POINTER
 })
-def hook_VirtualProtect(self, address, params):
+def hook_VirtualProtect(ql, address, params):
     return 1

@@ -1,6 +1,8 @@
 [SYSTEM]
 # Major Minor ProductType
-os = 1001
+majorVersion = 10
+minorVersion = 0
+productType = 1
 language = 1093
 VER_SERVICEPACKMAJOR = 0
 computer_name = qilingpc
@@ -17,4 +19,4 @@ registry_diff = registry_diff.json
 
 [VOLUME]
 serial_number = 3224010732
-type = "NTFS"
+type = NTFS
