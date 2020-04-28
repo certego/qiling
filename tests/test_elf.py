@@ -4,6 +4,7 @@
 # Built on top of Unicorn emulator (www.unicorn-engine.org) 
 
 import sys, unittest, subprocess, string, random, os
+sys.path.append("..")
 from qiling import *
 from qiling.const import *
 from qiling.exception import *
@@ -55,8 +56,6 @@ class ELFTest(unittest.TestCase):
 
     def test_elf_linux_x8664(self):
         ql = Qiling(["../examples/rootfs/x8664_linux/bin/x8664_args","1234test", "12345678", "bin/x8664_hello"],  "../examples/rootfs/x8664_linux", output="debug")
-        addr = ql.mem.map_anywhere(0x100000)
-        ql.nprint("0x%x" %  addr)
         ql.run()
         del ql
 
@@ -89,9 +88,7 @@ class ELFTest(unittest.TestCase):
 
 
     def test_elf_linux_x86(self):
-        ql = Qiling(["../examples/rootfs/x86_linux/bin/x86_hello"], "../examples/rootfs/x86_linux", output="debug")
-        addr = ql.mem.map_anywhere(0x100000)
-        ql.nprint("0x%x" %  addr)        
+        ql = Qiling(["../examples/rootfs/x86_linux/bin/x86_hello"], "../examples/rootfs/x86_linux", output="debug")     
         ql.run()
         del ql
 
@@ -576,7 +573,8 @@ class ELFTest(unittest.TestCase):
         def my_syscall_write(ql, write_fd, write_buf, write_count, *args, **kw):
             regreturn = 0
             buf = None
-            
+            mapaddr = ql.mem.map_anywhere(0x100000)
+            ql.nprint("0x%x" %  mapaddr)  
             try:
                 buf = ql.mem.read(write_buf, write_count)
                 ql.nprint("\n+++++++++\nmy write(%d,%x,%i) = %d\n+++++++++" % (write_fd, write_buf, write_count, regreturn))

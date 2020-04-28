@@ -331,6 +331,10 @@ def compare(p1, operator, p2):
         return p1 > p2
     elif operator == ">=":
         return p1 >= p2
+    elif operator == "<":
+        return p1 < p2
+    elif operator == "<=":
+        return p1 <= p2
     else:
         raise QlErrorNotImplemented("[!] API not implemented")
 
@@ -386,6 +390,10 @@ def hook_VerifyVersionInfoW(ql, address, params):
             operator = ">"
         elif value == VER_GREATER_EQUAL:
             operator = ">="
+        elif value == VER_LESS:
+            operator = "<"
+        elif value == VER_LESS_EQUAL:
+            operator = "<="
         else:
             raise QlErrorNotImplemented("[!] API not implemented with operator %d" % value)
         # Versions should be compared together
@@ -415,6 +423,8 @@ def hook_VerifyVersionInfoW(ql, address, params):
         if not res:
             ql.os.last_error = ERROR_OLD_WIN_VERSION
             return 0
+    # reset mask
+    ql.os.hooks_variables["ConditionMask"]= {}
     return res
 
 
@@ -427,7 +437,7 @@ def hook_VerifyVersionInfoW(ql, address, params):
     "pcbBuffer": POINTER
 })
 def hook_GetUserNameW(ql, address, params):
-    username = (ql.os.profile["USER"]["user"]+"\x00").encode("utf-16le")
+    username = (ql.os.profile["USER"]["username"]+"\x00").encode("utf-16le")
     dst = params["lpBuffer"]
     max_size = params["pcbBuffer"]
     ql.mem.write(max_size, len(username).to_bytes(4, byteorder="little"))

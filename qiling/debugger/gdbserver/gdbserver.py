@@ -264,14 +264,14 @@ class GDBSERVERsession(object):
                 try:
                     if self.ql.archtype== QL_ARCH.X86:
                         if reg_index <= 24:
-                            reg_value = self.ql.register(registers_x86[reg_index-1])
+                            reg_value = self.ql.register(self.ql.reg.table[reg_index-1])
                         else:
                             reg_value = 0
                         reg_value = self.ql.arch.addr_to_str(reg_value)
                     
                     elif self.ql.archtype== QL_ARCH.X8664:
                         if reg_index <= 32:
-                            reg_value = self.ql.register(registers_x8664[reg_index-1])
+                            reg_value = self.ql.register(self.ql.reg.table[reg_index-1])
                         else:
                             reg_value = 0
                         if reg_index <= 17:
@@ -281,21 +281,21 @@ class GDBSERVERsession(object):
                     
                     elif self.ql.archtype== QL_ARCH.ARM:
                         if reg_index < 17:
-                            reg_value = self.ql.register(registers_arm[reg_index - 1])
+                            reg_value = self.ql.register(self.ql.reg.table[reg_index - 1])
                         else:
                             reg_value = 0
                         reg_value = self.ql.arch.addr_to_str(reg_value)
 
                     elif self.ql.archtype== QL_ARCH.ARM64:
                         if reg_index <= 32:
-                            reg_value = self.ql.register(registers_arm64[reg_index - 1])
+                            reg_value = self.ql.register(self.ql.reg.table[reg_index - 1])
                         else:
                             reg_value = 0
                             reg_value = self.ql.arch.addr_to_str(reg_value)
 
                     elif self.ql.archtype== QL_ARCH.MIPS32:
                         if reg_index <= 37:
-                            reg_value = self.ql.register(registers_mips[reg_index - 1])
+                            reg_value = self.ql.register(self.ql.reg.table[reg_index - 1])
                         else:
                             reg_value = 0
                         if self.ql.archendian == QL_ENDIAN.EL:
@@ -382,13 +382,13 @@ class GDBSERVERsession(object):
                     xml_folder      = ql_arch_convert_str(self.ql.archtype)
                     xfercmd_file    = os.path.join(xfercmd_abspath,"xml",xml_folder, xfercmd_file)                        
 
-                    if os.path.exists(xfercmd_file):
+                    if os.path.exists(xfercmd_file) and self.ql.ostype is not QL_OS.WINDOWS:
                         f = open(xfercmd_file, 'r')
                         file_contents = f.read()
                         self.send("l%s" % file_contents)
                     else:
                         self.ql.nprint("gdb> Xml file not found: %s\n" % (xfercmd_file))
-                        exit(1)
+
 
                 elif subcmd.startswith('Xfer:threads:read::0,'):
                     file_contents = ("<threads>\r\n<thread id=\"2048\" core=\"3\" name=\"" + self.ql.targetname + "\"/>\r\n</threads>")
@@ -718,7 +718,6 @@ class GDBSERVERsession(object):
         try:
             while True:
                 c = self.netin.read(1)
-                # self.ql.dprint(c)
                 if c == '\x03':
                     return 'Error: CTRL+C'
 

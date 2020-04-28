@@ -21,13 +21,12 @@ class QlOsLinux(QlOsPosix):
         self.QL_ARM_KERNEL_GET_TLS_ADDR = 0xFFFF0FE0
         self.thread_class = None
         self.futexm = None
+        self.fh_tmp = []
+        self.fh = None
         self.load()
 
     def load(self):
-        """
-        initiate UC needs to be in loader,
-        or else it will kill execve
-        """
+
         self.ql.uc = self.ql.arch.init_uc
         self.futexm = QlLinuxFutexManagement()
 
@@ -35,21 +34,21 @@ class QlOsLinux(QlOsPosix):
         if self.ql.archtype== QL_ARCH.ARM:
             self.QL_LINUX_PREDEFINE_STACKADDRESS = 0xfff0d000
             self.ql.arch.enable_vfp()
-            self.ql.hook_intr(self.hook_syscall)
+            self.ql.hook_intno(self.hook_syscall, 2)
             self.thread_class = QlLinuxARMThread
 
         # MIPS32
         elif self.ql.archtype== QL_ARCH.MIPS32:
             self.QL_LINUX_PREDEFINE_STACKADDRESS = 0x7ff0d000
             self.QL_LINUX_PREDEFINE_STACKSIZE = 0x30000
-            self.ql.hook_intr(self.hook_syscall)
+            self.ql.hook_intno(self.hook_syscall, 17)
             self.thread_class = QlLinuxMIPS32Thread
 
         # ARM64
         elif self.ql.archtype== QL_ARCH.ARM64:
             self.QL_LINUX_PREDEFINE_STACKADDRESS = 0x7ffffffde000
             self.ql.arch.enable_vfp()
-            self.ql.hook_intr(self.hook_syscall)
+            self.ql.hook_intno(self.hook_syscall, 2)
             self.thread_class = QlLinuxARM64Thread
 
         # X86
@@ -58,7 +57,7 @@ class QlOsLinux(QlOsPosix):
             self.gdtm = GDTManager(self.ql)
             ql_x86_register_cs(self)
             ql_x86_register_ds_ss_es(self)
-            self.ql.hook_intr(self.hook_syscall)
+            self.ql.hook_intno(self.hook_syscall, 0x80)
             self.thread_class = QlLinuxX86Thread
 
         # X8664
@@ -94,8 +93,13 @@ class QlOsLinux(QlOsPosix):
     def hook_syscall(self, int= None, intno= None):
         return self.load_syscall(intno)
 
+    def add_function_hook(self, fn, cb, userdata = None):
+        self.fh_tmp.append((fn, cb, userdata))
 
     def run(self):
+        for fn, cb, userdata in self.fh_tmp:
+            self.fh.add_function_hook(fn, cb, userdata)
+
         if self.ql.archtype== QL_ARCH.ARM:
             ql_arm_init_kernel_get_tls(self.ql)
         

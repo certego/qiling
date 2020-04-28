@@ -85,9 +85,9 @@ def hook_ExpandEnvironmentStringsW(ql, address, params):
     start = string.find("%")
     end = string.rfind("%")
     substring = string[start + 1:end]
-    result = ql.os.profile["PATHS"].get(substring, None)
+    result = ql.os.profile["PATH"].get(substring, None)
     if result is None:
-        ql.dprint(substring)
+        ql.dprint(D_INFO, substring)
         raise QlErrorNotImplemented("[!] API not implemented")
     result = (string[:start] + result + string[end + 1:] + "\x00").encode("utf-16le")
     dst = params["lpDst"]
