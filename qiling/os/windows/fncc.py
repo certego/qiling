@@ -148,7 +148,7 @@ def __x86_cc(ql, param_num, params, func, args, kwargs):
     return result, param_num
 
 
-def call_api(ql, name, params, result, address, return_address):
+def _call_api(ql, name, params, result, address, return_address):
     params_with_values = {}
     if name.startswith("hook_"):
         name = name.split("hook_", 1)[1]
@@ -173,7 +173,7 @@ def x86_stdcall(ql, param_num, params, func, args, kwargs):
     ret_addr = ql.stack_read(0)
 
     # append syscall to list
-    call_api(ql, func.__name__, params, result, ql.reg.pc, ret_addr)
+    _call_api(ql, func.__name__, params, result, ql.reg.pc, ret_addr)
 
     # update stack pointer
     ql.reg.sp = ql.reg.sp + ((param_num + 1) * 4)
@@ -188,7 +188,7 @@ def x86_cdecl(ql, param_num, params, func, args, kwargs):
     result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
     old_pc = ql.reg.pc
     # append syscall to list
-    call_api(ql, func.__name__, params, result, old_pc, ql.stack_read(0))
+    _call_api(ql, func.__name__, params, result, old_pc, ql.stack_read(0))
 
     if ql.os.PE_RUN:
         ql.reg.pc = ql.stack_pop()
@@ -201,7 +201,7 @@ def x8664_fastcall(ql,  param_num, params, func, args, kwargs):
     result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
     old_pc = ql.reg.pc
     # append syscall to list
-    call_api(ql, func.__name__, params, result, old_pc, ql.stack_read(0))
+    _call_api(ql, func.__name__, params, result, old_pc, ql.stack_read(0))
 
     if ql.os.PE_RUN:
         ql.reg.pc = ql.stack_pop()
