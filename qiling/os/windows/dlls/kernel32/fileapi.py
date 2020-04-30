@@ -133,7 +133,9 @@ def hook_WriteFile(ql, address, params):
     lpOverlapped = params["lpOverlapped"]
     if hFile == STD_OUTPUT_HANDLE:
         s = ql.mem.read(lpBuffer, nNumberOfBytesToWrite)
-        ql.os.stdout.write(s)
+        if not ql.automatize_input:
+            ql.os.stdout.write(s)
+        ql.os.strings(s.decode())
         ql.mem.write(lpNumberOfBytesWritten, ql.pack(nNumberOfBytesToWrite))
     else:
         f = ql.os.handle_manager.get(hFile)
