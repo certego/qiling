@@ -135,7 +135,7 @@ def hook_WriteFile(ql, address, params):
         s = ql.mem.read(lpBuffer, nNumberOfBytesToWrite)
         if not ql.automatize_input:
             ql.os.stdout.write(s)
-        ql.os.strings(s.decode())
+        ql.os.strings.append(s.decode())
         ql.mem.write(lpNumberOfBytesWritten, ql.pack(nNumberOfBytesToWrite))
     else:
         f = ql.os.handle_manager.get(hFile)
