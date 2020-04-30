@@ -129,7 +129,9 @@ def printf(ql, address, fmt, params_addr, name, wstring=False, double_pointer = 
         output = '%s(format = %s) = 0x%x' % (name, repr(fmt), len(fmt))
         stdout = fmt
     ql.nprint(output)
-    ql.os.stdout.write(bytes(stdout , 'utf-8'))
+    ql.os.strings.append(stdout)
+    if not ql.automatize_input:
+        ql.os.stdout.write(bytes(stdout , 'utf-8'))
     return len(stdout), stdout
 
 

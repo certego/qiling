@@ -46,4 +46,4 @@ class QlOs(QLOsUtils):
         # We can save every syscall called
         self.syscalls = {}
         self.syscalls_counter = 0
-
+        self.strings = []
