@@ -233,7 +233,7 @@ class QLOsUtils:
             for value in values:
                 self.ql.dprint(D_INFO, "[-] %s " % str(dumps(value)))
         self.ql.dprint(D_INFO, "[+] Printfs")
-        [self.ql.dprint(D_INFO, "[-] %s")% string for string in self.ql.os.strings]
+        [self.ql.dprint(D_INFO, "[-] %s" % string) for string in self.ql.os.strings]
 
 
 
