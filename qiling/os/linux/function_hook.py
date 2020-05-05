@@ -1,4 +1,7 @@
-
+#!/usr/bin/env python3
+#
+# Cross Platform and Multi Architecture Advanced Binary Emulation Framework
+# Built on top of Unicorn emulator (www.unicorn-engine.org)
 
 import struct
 from qiling.const import *
@@ -59,13 +62,23 @@ class HookFunc:
         self.hook.append((cb, userdata))
     
     def call(self):
-        ori_val = self.ql.unpack(self.ql.mem.read(self.hook_data_ptr, self.ql.pointersize))
+        if self.ql.archtype == QL_ARCH.ARM or self.ql.archtype == QL_ARCH.ARM64:
+            self.ql.reg.arch_pc = self.ql.reg.arch_pc + 4
+            
+        next_pc = self.ql.unpack(self.ql.mem.read(self.hook_data_ptr, self.ql.pointersize))
         for cb, userdata in self.hook:
             if userdata == None:
-                ret = cb(self.ql, self.fucname, ori_val)
+                ret = cb(self.ql)
             else:
-                ret = cb(self.ql, self.fucname, ori_val, userdata)
-            if ret == False:
+                ret = cb(self.ql, userdata)
+
+            if type(ret) != int:
+                ret = 0
+            
+            if ret & FUNC_CALL_BLOCK == 0:
+                self.ql.reg.arch_pc = next_pc
+            
+            if ret & FUNC_HOOK_BLOCK != 0:
                 break
     
     def enable(self):
@@ -76,7 +89,10 @@ class HookFunc:
         self.rel.r_offset = self.hook_data_ptr - self.load_base        
         self.ql.mem.write(self.rel.ptr, self.rel.pack())
 
+        ori_data = self.ql.mem.read(self.ori_offest + self.load_base, self.ql.pointersize)
+
         self.ql.mem.write(self.ori_offest + self.load_base, self.ql.pack(self.hook_fuc_ptr))
+        self.ql.mem.write(self.hook_data_ptr, bytes(ori_data))
         
 
 class ELF_Phdr:
@@ -346,10 +362,11 @@ class FunctionHook:
         if self.ql.archtype== QL_ARCH.ARM:
             GLOB_DAT = 21
             JMP_SLOT = 22
-            ins = b'\xa0\x00\x00\xef\x1e\xff/\xe1'
+            # bkpt 0; bx lr
+            ins = b'p\x00 \xe1\x1e\xff/\xe1'
 
         # MIPS32
-        elif self.ql.archtype== QL_ARCH.MIPS32:
+        elif self.ql.archtype== QL_ARCH.MIPS:
             GLOB_DAT = 21
             JMP_SLOT = 22
             ins = b'\xa0\x00\x00\xef\x1e\xff/\xe1'
@@ -358,18 +375,21 @@ class FunctionHook:
         elif self.ql.archtype== QL_ARCH.ARM64:
             GLOB_DAT = 1025
             JMP_SLOT = 1026
-            ins = b'\x01\x14\x00\xd4\xc0\x03_\xd6'
+            #brk 0; ret
+            ins = b'\x00\x00 \xd4\xc0\x03_\xd6'
 
         # X86
         elif  self.ql.archtype== QL_ARCH.X86:
             GLOB_DAT = 6
             JMP_SLOT = 7
+            # int 0xa0; ret
             ins = b'\xcd\xa0\xc3'.ljust(8, b'\x90')
 
         # X8664
         elif  self.ql.archtype== QL_ARCH.X8664:
             GLOB_DAT = 6
             JMP_SLOT = 7
+            # int 0xa0; ret
             ins = b'\xcd\xa0\xc3'.ljust(8, b'\x90')
 
         self._parse()
@@ -640,7 +660,7 @@ class FunctionHook:
                 self.ql.nprint('[+] rel fuc name ' + str(fuc_name))
 
     def _hook_int(self, ql, intno):
-        idx = (self.ql.reg.pc - self.hook_mem) // 0x10
+        idx = (self.ql.reg.arch_pc - self.hook_mem) // 0x10
 
         if idx not in self.use_list.keys():
             raise
@@ -670,7 +690,10 @@ class FunctionHook:
         hf.enable()
 
         if self.hook_int == False:
-            self.ql.hook_intno(self._hook_int, 0xa0)
+            if self.ql.archtype == QL_ARCH.X86 or self.ql.archtype == QL_ARCH.X8664:
+                self.ql.hook_intno(self._hook_int, 0xa0)
+            elif self.ql.archtype == QL_ARCH.ARM or self.ql.archtype == QL_ARCH.ARM64:
+                self.ql.hook_intno(self._hook_int, 7)
 
 
     def add_function_hook(self, fucname, cb, userdata = None):

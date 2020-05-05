@@ -83,7 +83,7 @@ from qiling import *
 
 def force_call_dialog_func(ql):
     # get DialogFunc address
-    lpDialogFunc = ql.unpack32(ql.mem.read(ql.reg.sp - 0x8, 4))
+    lpDialogFunc = ql.unpack32(ql.mem.read(ql.reg.esp - 0x8, 4))
     # setup stack memory for DialogFunc
     ql.stack_push(0)
     ql.stack_push(1001)
@@ -91,7 +91,7 @@ def force_call_dialog_func(ql):
     ql.stack_push(0)
     ql.stack_push(0x0401018)
     # force EIP to DialogFunc
-    ql.reg.pc = lpDialogFunc
+    ql.reg.eip = lpDialogFunc
 
 
 def my_sandbox(path, rootfs):
@@ -196,6 +196,7 @@ Contact us at email info@qiling.io, or via Twitter [@qiling_io](https://twitter.
 - SUN bowen (w1tcher) <w1tcher.bupt@gmail.com>
 - CHEN huitao (null) <null@qiling.io>
 - YU tong (sp1ke) <spikeinhouse@gmail.com>
+- Earl Marcus (klks84) klks84@gmail.com 
 
 #### Travis-CI, Docker and Website
 - FOO Kevin (chfl4gs) <chbsd64@qiling.io>
