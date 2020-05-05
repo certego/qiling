@@ -81,6 +81,9 @@ class QlOsPosix(QlOs):
                     "return_address": None,
                     "position": self.syscalls_counter
                 })
+                if self.syscalls_counter in ql.timed_hooks.keys():
+                    for func in ql.timed_hooks[ql.os.syscalls_counter]:
+                        func(ql)
 
                 self.syscalls_counter += 1
 
