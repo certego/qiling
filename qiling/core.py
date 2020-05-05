@@ -172,6 +172,7 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
         # OS #
         ######
         self.os = self.os_setup()
+        self.timed_hooks = {}
 
     def load(self):
         # load the loader

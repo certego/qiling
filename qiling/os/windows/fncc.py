@@ -170,7 +170,9 @@ def _call_api(ql, name, params, result, address, return_address):
         "return_address": return_address,
         "position": ql.os.syscalls_counter
     })
-
+    if ql.os.syscalls_counter in ql.timed_hooks.keys():
+        for func in ql.timed_hooks[ql.os.syscalls_counter]:
+            func(ql)
     ql.os.syscalls_counter += 1
 
 
