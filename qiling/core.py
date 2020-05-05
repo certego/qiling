@@ -185,11 +185,6 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
         self.timeout = timeout
         self.count = count
 
-        # Run the loader
-
-
-    def run(self):
-
         # setup strace filter for logger
         # FIXME: only works for logging due to we might need runtime disable nprint
         if self.strace_filter != None and self.output == QL_OUTPUT.DEFAULT and self.log_file_fd:
