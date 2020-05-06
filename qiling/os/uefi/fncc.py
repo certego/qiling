@@ -4,13 +4,9 @@
 # Built on top of Unicorn emulator (www.unicorn-engine.org) 
 
 import struct
-from functools import wraps
-
-from qiling.os.const import *
-from .utils import *
 from qiling.const import *
-from functools import wraps
-from qiling.exception import *
+
+from qiling.os.windows.utils import read_cstring, read_wstring, read_guid, print_function
 
 DWORD = 1
 UINT = 1
@@ -27,11 +23,16 @@ STRING_ADDR = 6
 WSTRING_ADDR = 7
 GUID = 8
 
+def _get_param_by_index(ql, index):
+    if ql.archtype == QL_ARCH.X86:
+        return _x86_get_params_by_index(ql, index)
+    elif ql.archtype == QL_ARCH.X8664:
+        return _x8664_get_params_by_index(ql, index)
+
 def _x86_get_params_by_index(ql, index):
     # index starts from 0
     # skip ret_addr
     return ql.stack_read((index + 1) * 4)
-
 
 def _x8664_get_params_by_index(ql, index):
     reg_list = ["rcx", "rdx", "r8", "r9"]
@@ -42,42 +43,11 @@ def _x8664_get_params_by_index(ql, index):
     # skip ret_addr
     return ql.stack_read((index + 5) * 8)
 
-
-def _get_param_by_index(ql, index):
+def set_return_value(ql, ret):
     if ql.archtype == QL_ARCH.X86:
-        return _x86_get_params_by_index(ql, index)
+        ql.reg.eax = ret
     elif ql.archtype == QL_ARCH.X8664:
-        return _x8664_get_params_by_index(ql, index)
-
-
-def _x86_get_args(ql, number):
-    arg_list = []
-    for i in range(number):
-        # skip ret_addr
-        arg_list.append(ql.stack_read((i + 1) * 4))
-    if number == 1:
-        return arg_list[0]
-    else:
-        return arg_list
-
-
-def _x8664_get_args(ql, number):
-    reg_list = ["rcx", "rdx", "r8", "r9"]
-    arg_list = []
-    reg_num = number
-    if reg_num > 4:
-        reg_num = 4
-    number -= reg_num
-    for i in reg_list[:reg_num]:
-        arg_list.append(ql.reg.read(i))
-    for i in range(number):
-        # skip ret_addr and 32 byte home space
-        arg_list.append(ql.stack_read((i + 5) * 8))
-    if reg_num == 1:
-        return arg_list[0]
-    else:
-        return arg_list
-
+        ql.reg.rax = ret
 
 def set_function_params(ql, in_params, out_params):
     index = 0
@@ -121,32 +91,6 @@ def set_function_params(ql, in_params, out_params):
         index += 1
     return index
 
-
-def get_function_param(ql, number):
-    if ql.archtype == QL_ARCH.X86:
-        return _x86_get_args(ql, number)
-    elif ql.archtype == QL_ARCH.X8664:
-        return _x8664_get_args(ql, number)
-
-
-def set_return_value(ql, ret):
-    if ql.archtype == QL_ARCH.X86:
-        ql.reg.eax = ret
-    elif ql.archtype == QL_ARCH.X8664:
-        ql.reg.rax = ret
-
-
-def get_return_value(ql):
-    if ql.archtype == QL_ARCH.X86:
-        return ql.reg.eax
-    elif ql.archtype == QL_ARCH.X8664:
-        return ql.reg.rax
-
-
-#
-# stdcall cdecl fastcall cc
-#
-
 def __x86_cc(ql, param_num, params, func, args, kwargs):
     # read params
     if params is not None:
@@ -163,6 +107,7 @@ def __x86_cc(ql, param_num, params, func, args, kwargs):
     return result, param_num
 
 
+
 def _call_api(ql, name, params, result, address, return_address):
     params_with_values = {}
     if name.startswith("hook_"):
@@ -177,42 +122,8 @@ def _call_api(ql, name, params, result, address, return_address):
         "return_address": return_address,
         "position": ql.os.syscalls_counter
     })
-    if ql.os.syscalls_counter in ql.timed_hooks.keys():
-        for func in ql.timed_hooks[ql.os.syscalls_counter]:
-            func(ql)
+
     ql.os.syscalls_counter += 1
-
-
-def x86_stdcall(ql, param_num, params, func, args, kwargs):
-    # if we check ret_addr before the call, we can't modify the ret_addr from inside the hook
-    result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
-
-    # get ret addr
-    ret_addr = ql.stack_read(0)
-
-    # append syscall to list
-    _call_api(ql, func.__name__, params, result, ql.reg.arch_pc, ret_addr)
-
-    # update stack pointer
-    ql.reg.arch_sp = ql.reg.arch_sp + ((param_num + 1) * 4)
-
-    if ql.os.PE_RUN:
-        ql.reg.arch_pc = ret_addr
-
-    return result
-
-
-def x86_cdecl(ql, param_num, params, func, args, kwargs):
-    result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
-    old_pc = ql.reg.arch_pc
-    # append syscall to list
-    _call_api(ql, func.__name__, params, result, old_pc, ql.stack_read(0))
-
-    if ql.os.PE_RUN:
-        ql.reg.arch_pc = ql.stack_pop()
-
-    return result
-
 
 def x8664_fastcall(ql, param_num, params, func, args, kwargs):
     result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
@@ -225,28 +136,77 @@ def x8664_fastcall(ql, param_num, params, func, args, kwargs):
 
     return result
 
-
-# x86/x8664 PE should share Windows APIs
-def winapi(cc, param_num=None, params=None):
-    """
-    @cc: windows api calling convention, only x86 needs this, x64 is always fastcall
-    @params: params dict
-    @param_num: the number of function params, used by variadic functions, e.g printf
-    """
-
+def dxeapi(param_num=None, params=None):
     def decorator(func):
-        @wraps(func)
         def wrapper(*args, **kwargs):
+            class hook_context:
+                EFI_MAX_BIT = 0x8000000000000000
+                EFI_SUCCESS = 0
+                EFI_LOAD_ERROR = EFI_MAX_BIT | 1
+                EFI_INVALID_PARAMETER = EFI_MAX_BIT | 2
+                EFI_UNSUPPORTED = EFI_MAX_BIT | 3
+                EFI_BAD_BUFFER_SIZE = EFI_MAX_BIT | 4
+                EFI_BUFFER_TOO_SMALL = EFI_MAX_BIT | 5
+                EFI_NOT_READY = EFI_MAX_BIT | 6
+                EFI_DEVICE_ERROR = EFI_MAX_BIT | 7
+                EFI_WRITE_PROTECTED = EFI_MAX_BIT | 8
+                EFI_OUT_OF_RESOURCES = EFI_MAX_BIT | 9
+                EFI_VOLUME_CORRUPTED = EFI_MAX_BIT | 10
+                EFI_VOLUME_FULL = EFI_MAX_BIT | 11
+                EFI_NO_MEDIA = EFI_MAX_BIT | 12
+                EFI_MEDIA_CHANGED = EFI_MAX_BIT | 13
+                EFI_NOT_FOUND = EFI_MAX_BIT | 14
+                EFI_ACCESS_DENIED = EFI_MAX_BIT | 15
+                EFI_NO_RESPONSE = EFI_MAX_BIT | 16
+                EFI_NO_MAPPING = EFI_MAX_BIT | 17
+                EFI_TIMEOUT = EFI_MAX_BIT | 18
+                EFI_NOT_STARTED = EFI_MAX_BIT | 19
+                EFI_ALREADY_STARTED = EFI_MAX_BIT | 20
+                EFI_ABORTED = EFI_MAX_BIT | 21
+                EFI_ICMP_ERROR = EFI_MAX_BIT | 22
+                EFI_TFTP_ERROR = EFI_MAX_BIT | 23
+                EFI_PROTOCOL_ERROR = EFI_MAX_BIT | 24
+                EFI_INCOMPATIBLE_VERSION = EFI_MAX_BIT | 25
+                EFI_SECURITY_VIOLATION = EFI_MAX_BIT | 26
+                EFI_CRC_ERROR = EFI_MAX_BIT | 27
+                EFI_END_OF_MEDIA = EFI_MAX_BIT | 28
+                EFI_END_OF_FILE = EFI_MAX_BIT | 31
+                EFI_INVALID_LANGUAGE = EFI_MAX_BIT | 32
+                EFI_WARN_UNKNOWN_GLYPH = EFI_MAX_BIT | 1
+                EFI_WARN_DELETE_FAILURE = EFI_MAX_BIT | 2
+                EFI_WARN_WRITE_FAILURE = EFI_MAX_BIT | 3
+                EFI_WARN_BUFFER_TOO_SMALL = EFI_MAX_BIT | 4
+
+                SEARCHTYPE_AllHandles = 0
+                SEARCHTYPE_ByRegisterNotify = 1
+                SEARCHTYPE_ByProtoco = 2
+                
+                def __init__(self, ql):
+                    self.PE_RUN = True
+                    self.ql = ql
+                def write_int32(self, address, num):
+                    if self.ql.archendian == QL_ENDIAN.EL:
+                        self.ql.mem.write(address, struct.pack('<I',(num)))
+                    else:
+                        self.ql.mem.write(address, struct.pack('>I',(num)))
+                def write_int64(self, address, num):
+                    if self.ql.archendian == QL_ENDIAN.EL:
+                        self.ql.mem.write(address, struct.pack('<Q',(num)))
+                    else:
+                        self.ql.mem.write(address, struct.pack('>Q',(num)))
+                def read_int64(self, address):
+                    if self.ql.archendian == QL_ENDIAN.EL:
+                        return struct.unpack('<Q', self.ql.mem.read(address, 8))[0]
+                    else:
+                        return struct.unpack('>Q',self.ql.mem.read(address, 8))[0]
+            
             ql = args[0]
-            if ql.archtype == QL_ARCH.X86:
-                if cc == STDCALL:
-                    return x86_stdcall(ql, param_num, params, func, args, kwargs)
-                elif cc == CDECL:
-                    return x86_cdecl(ql, param_num, params, func, args, kwargs)
-            elif ql.archtype == QL_ARCH.X8664:
-                return x8664_fastcall(ql, param_num, params, func, args, kwargs)
-            else:
-                raise QlErrorArch("[!] Unknown self.ql.arch")
+            ql.os.ctx = hook_context(ql)
+            arg = (ql, ql.reg.arch_pc, {})
+            f = func
+            if func.__name__ in ql.loader.hook_override:
+                f = ql.loader.hook_override[func.__name__]
+            return x8664_fastcall(ql, param_num, params, f, arg, kwargs)
 
         return wrapper
 

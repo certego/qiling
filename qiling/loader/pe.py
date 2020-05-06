@@ -55,7 +55,8 @@ class Process(QlLoader):
         except KeyError as ke:
             pass
 
-        if self.ql.libcache and os.path.exists(fcache):
+        if self.ql.libcache and os.path.exists(fcache) and \
+            os.stat(fcache).st_mtime > os.stat(path).st_mtime: # pickle file cannot be outdated
             (data, cmdlines, self.import_symbols, self.import_address_table) = \
                 pickle.load(open(fcache, "rb"))
             for entry in cmdlines:
@@ -323,7 +324,7 @@ class QlLoaderPE(Process, QlLoader):
             self.pe_image_address = self.pe_image_address = self.pe.OPTIONAL_HEADER.ImageBase
             self.pe_image_address_size = self.pe_image_address_size = self.pe.OPTIONAL_HEADER.SizeOfImage
 
-            if self.pe_image_address + self.pe_image_address_size > self.ql.os.heap_base_addr:
+            if self.pe_image_address + self.pe_image_address_size > self.ql.os.heap_base_address:
                 # pe reloc
                 self.pe_image_address = self.pe_image_address = self.image_address
                 self.pe.relocate_image(self.image_address)
