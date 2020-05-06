@@ -312,6 +312,14 @@ class QLCoreHooks(object):
         else:
             self.os.add_function_hook(api_name, my_func)
 
+    def set_partial_api(self, api_name, params: dict, my_func):
+        if self.ostype == QL_OS.WINDOWS:
+            params["func"] = my_func
+            # is a list so is possible to append more than one hook to the same syscall
+            self.os.user_partial_defined_api.setdefault(api_name, []).append(params)
+        else:
+            raise QlErrorCoreHook("Only windows is supported for now :(")
+
     # ql.func_arg - get syscall for all posix series
     @property
     def func_arg(self):

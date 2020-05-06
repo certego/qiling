@@ -27,6 +27,7 @@ STRING_ADDR = 6
 WSTRING_ADDR = 7
 GUID = 8
 
+
 def _x86_get_params_by_index(ql, index):
     # index starts from 0
     # skip ret_addr
@@ -151,6 +152,22 @@ def __x86_cc(ql, param_num, params, func, args, kwargs):
     # read params
     if params is not None:
         param_num = set_function_params(ql, params, args[2])
+    name = retrieve_winapi_name(ql, ql.reg.arch_pc)
+    # we check if we need to call the user defined syscall
+    if name in ql.os.user_partial_defined_api:
+        for params_user in ql.os.user_partial_defined_api[name]:
+            partial = True
+            for key, value in params_user.items():
+                partial = True
+                # we try to match the parameters
+                if key != "func" and args[2][key] != value:
+                    partial = False
+                    # if one doesn't match, we are already done
+                    break
+                # we need to call our function!
+            if partial:
+                func = params_user["func"]
+
     # call function
     result = func(*args, **kwargs)
 
