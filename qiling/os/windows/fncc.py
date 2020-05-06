@@ -166,6 +166,7 @@ def __x86_cc(ql, param_num, params, func, args, kwargs):
                     break
                 # we need to call our function!
             if partial:
+
                 func = params_user["func"]
 
     # call function
@@ -177,7 +178,7 @@ def __x86_cc(ql, param_num, params, func, args, kwargs):
     # print
     print_function(ql, args[1], func.__name__, args[2], result)
 
-    return result, param_num
+    return result, param_num, func.__name__
 
 
 def _call_api(ql, name, params, result, address, return_address):
@@ -202,13 +203,13 @@ def _call_api(ql, name, params, result, address, return_address):
 
 def x86_stdcall(ql, param_num, params, func, args, kwargs):
     # if we check ret_addr before the call, we can't modify the ret_addr from inside the hook
-    result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
+    result, param_num, name = __x86_cc(ql, param_num, params, func, args, kwargs)
 
     # get ret addr
     ret_addr = ql.stack_read(0)
 
     # append syscall to list
-    _call_api(ql, func.__name__, params, result, ql.reg.arch_pc, ret_addr)
+    _call_api(ql, name, params, result, ql.reg.arch_pc, ret_addr)
 
     # update stack pointer
     ql.reg.arch_sp = ql.reg.arch_sp + ((param_num + 1) * 4)
@@ -220,10 +221,10 @@ def x86_stdcall(ql, param_num, params, func, args, kwargs):
 
 
 def x86_cdecl(ql, param_num, params, func, args, kwargs):
-    result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
+    result, param_num, name = __x86_cc(ql, param_num, params, func, args, kwargs)
     old_pc = ql.reg.arch_pc
     # append syscall to list
-    _call_api(ql, func.__name__, params, result, old_pc, ql.stack_read(0))
+    _call_api(ql, name, params, result, old_pc, ql.stack_read(0))
 
     if ql.os.PE_RUN:
         ql.reg.arch_pc = ql.stack_pop()
@@ -232,10 +233,10 @@ def x86_cdecl(ql, param_num, params, func, args, kwargs):
 
 
 def x8664_fastcall(ql, param_num, params, func, args, kwargs):
-    result, param_num = __x86_cc(ql, param_num, params, func, args, kwargs)
+    result, param_num, name = __x86_cc(ql, param_num, params, func, args, kwargs)
     old_pc = ql.reg.arch_pc
     # append syscall to list
-    _call_api(ql, func.__name__, params, result, old_pc, ql.stack_read(0))
+    _call_api(ql, name, params, result, old_pc, ql.stack_read(0))
 
     if ql.os.PE_RUN:
         ql.reg.arch_pc = ql.stack_pop()
