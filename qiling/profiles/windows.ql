@@ -19,8 +19,30 @@ entry_point = 0x40000
 
 
 [SHELLCODER]
+# ram_size 0xa00000 is 10MB
 ram_size = 0xa00000
 entry_point = 0x1000000
+
+
+[KERNEL]
+pid = 1996
+
+
+[LOG]
+# log directory output
+# usage: dir = qlog
+dir =
+# split log file, use with multithread
+split = False
+
+
+[MISC]
+# append string into different logs
+# maily for multiple times Ql run with one file
+# usage: append = test1
+append =
+automatize_input = False
+
 
 
 [SYSTEM]
@@ -49,6 +71,7 @@ registry_diff = registry_diff.json
 
 
 [VOLUME]
+name = Volume1
 serial_number = 3224010732
 type = NTFS
 sectors_per_cluster = 10
