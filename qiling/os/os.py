@@ -225,9 +225,9 @@ class QlOs(QLOsUtils):
             "return_address": return_address,
             "position": self.syscalls_counter
         })
-        if self.syscalls_counter in ql.timed_hooks.keys():
-            for func in ql.timed_hooks[ql.os.syscalls_counter]:
-                func(ql)
+        if self.syscalls_counter in self.ql.timed_hooks.keys():
+            for func in self.ql.timed_hooks[self.ql.os.syscalls_counter]:
+                func(self.ql)
 
         self.ql.os.syscalls_counter += 1
 
