@@ -225,6 +225,9 @@ class QlOs(QLOsUtils):
             "return_address": return_address,
             "position": self.syscalls_counter
         })
+        if self.syscalls_counter in ql.timed_hooks.keys():
+            for func in ql.timed_hooks[ql.os.syscalls_counter]:
+                func(ql)
 
         self.ql.os.syscalls_counter += 1
 
@@ -271,3 +274,4 @@ class QlOs(QLOsUtils):
            self.ql.reg.arch_pc = self.ql.stack_pop()
 
         return result
+
