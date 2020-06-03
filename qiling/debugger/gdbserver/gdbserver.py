@@ -140,13 +140,13 @@ class GDBSERVERsession(object):
             def handle_g(subcmd):
                 s = ''
                 if self.ql.archtype== QL_ARCH.X86:
-                    for reg in self.ql.reg.table[:16]:
+                    for reg in self.ql.reg.table[:24]:
                         r = self.ql.reg.read(reg)
                         tmp = self.ql.arch.addr_to_str(r)
                         s += tmp
 
                 elif self.ql.archtype== QL_ARCH.X8664:
-                    for reg in self.ql.reg.table[:24]:
+                    for reg in self.ql.reg.table[:32]:
                         r = self.ql.reg.read(reg)
                         if self.ql.reg.bit(reg) == 64:
                             tmp = self.ql.arch.addr_to_str(r)
@@ -356,7 +356,7 @@ class GDBSERVERsession(object):
                         reg_data = int.from_bytes(struct.pack('<I', reg_data), byteorder='big')
                     self.ql.reg.write(self.ql.reg.table[reg_index], reg_data)
 
-                self.ql.nprint("gdb> Write to register %x with %x\n" % (self.ql.reg.table[reg_index], reg_data))
+                self.ql.nprint("gdb> Write to register %s with %x\n" % (self.ql.reg.table[reg_index], reg_data))
                 self.send('OK')
 
 
@@ -397,7 +397,8 @@ class GDBSERVERsession(object):
                         file_contents = f.read()
                         self.send("l%s" % file_contents)
                     else:
-                        self.ql.nprint("gdb> Xml file not found: %s\n" % (xfercmd_file))
+                        self.ql.nprint("gdb> Platform is not supported by xml or xml file not found: %s\n" % (xfercmd_file))
+                        self.send("l")
 
 
                 elif subcmd.startswith('Xfer:threads:read::0,'):

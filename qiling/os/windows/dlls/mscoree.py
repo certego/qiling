@@ -26,5 +26,5 @@ def hook_CorExitProcess(ql, address, params):
 @winapi(cc=STDCALL, params={
 })
 def hook__CorExeMain(ql, address, params):
-    # TODO implement + check call type
+    # TODO implement
     pass

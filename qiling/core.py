@@ -19,9 +19,10 @@ from .core_hooks import QLCoreHooks
 from .core_utils import QLCoreUtils
 from .debugger import ql_debugger_init
 
-__version__ = "1.1"
+__version__ = "1.1" + "-dev"
 
-class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):    
+
+class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
     def __init__(
             self,
             filename=None,
@@ -38,7 +39,7 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
             log_dir=None,
             log_split=None,
             append=None,
-            libcache = False,
+            libcache=False,
             stdin=0,
             stdout=0,
             stderr=0,
@@ -66,7 +67,7 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
-        
+
         ##################################
         # Definition after ql=Qiling()   #
         ##################################
@@ -109,7 +110,7 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
                 raise QlErrorFileNotFound("[!] Target binary not found")
             if not os.path.exists(self.rootfs):
                 raise QlErrorFileNotFound("[!] Target rootfs not found")
-        
+
         self.path = (str(self.filename[0]))
         self.argv = self.filename
         self.targetname = ntpath.basename(self.filename[0])
@@ -127,10 +128,10 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
             self.append = self.profile["MISC"]["append"]
         if self.log_dir == None:
             self.log_dir = self.profile["LOG"]["dir"]
-        if self.log_split == None:            
-            self.log_split =  self.profile.getboolean('LOG', 'split')
+        if self.log_split == None:
+            self.log_split = self.profile.getboolean('LOG', 'split')
 
-         # Log's configuration
+        # Log's configuration
         if self.log_dir != "" and type(self.log_dir) == str:
             _logger = ql_setup_logging_env(self)
             self.log_file_fd = _logger
@@ -144,25 +145,25 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
             self.output = self.output.lower()
             if self.output not in QL_OUTPUT:
                 raise QlErrorOutput("[!] OUTPUT required: either 'default', 'disasm', 'debug', 'dump'")
-            
+
         # check verbose, only can check after ouput being defined
 
-        if type(self.verbose) != int or self.verbose > 99 and (self.verbose > 0 and self.output not in (QL_OUTPUT.DEBUG, QL_OUTPUT.DUMP)):
+        if type(self.verbose) != int or self.verbose > 99 and (
+                self.verbose > 0 and self.output not in (QL_OUTPUT.DEBUG, QL_OUTPUT.DUMP)):
             raise QlErrorOutput("[!] verbose required input as int and less than 99")
-        
+
         ####################################
         # Set pointersize (32bit or 64bit) #
         ####################################
         self.archbit = ql_get_arch_bits(self.archtype)
 
-        self.pointersize = (self.archbit // 8)  
+        self.pointersize = (self.archbit // 8)
 
         # Endian for shellcode needs to set manually
         if self.shellcoder:
             self.archendian = QL_ENDIAN.EL
             if self.bigendian == True and self.archtype in (QL_ENDINABLE):
                 self.archendian = QL_ENDIAN.EB
-
 
         #############
         # Component #
@@ -204,7 +205,6 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
         # resume with debugger
         if self.debugger is not None:
             self.remote_debug.run()
-
 
     # patch @code to memory address @addr
     def patch(self, addr, code, file_name=b''):
