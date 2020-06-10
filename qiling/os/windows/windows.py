@@ -98,7 +98,10 @@ class QlOsWindows(QlOs):
                 if isinstance(self.user_defined_api_onenter[winapi_name], types.FunctionType):
                     self.winapi_func_onenter = self.user_defined_api_onenter[winapi_name]
             else:
-                self.winapi_func_onenter = None
+                if "*" in self.user_defined_api_onenter:
+                    self.winapi_func_onenter = self.user_defined_api_onenter["*"]
+                else:
+                    self.winapi_func_onenter = None
 
             if winapi_name in self.user_defined_api_onexit:
                 if isinstance(self.user_defined_api_onexit[winapi_name], types.FunctionType):
