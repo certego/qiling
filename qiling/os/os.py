@@ -195,7 +195,7 @@ class QlOs(QLOsUtils):
             param_num = self.set_function_params(params, args[2])
         
         if isinstance(self.winapi_func_onenter, types.FunctionType):
-            address, params = self.winapi_func_onenter(*args, **kwargs)
+            address, params = self.winapi_func_onenter( *args, **kwargs)
             args = (self.ql, address, params)
             onEnter = True
         else:

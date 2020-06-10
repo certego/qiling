@@ -75,37 +75,36 @@ class QlOsWindows(QlOs):
     # hook WinAPI in PE EMU
     def hook_winapi(self, int, address, size):
         if address in self.ql.loader.import_symbols:
-            winapi_name = self.ql.loader.import_symbols[address]['name']
-            if winapi_name is None:
-                winapi_name = Mapper[self.ql.loader.import_symbols[address]['dll']][
+            self.winapi_name = self.ql.loader.import_symbols[address]['name']
+            if self.winapi_name is None:
+                self.winapi_name = Mapper[self.ql.loader.import_symbols[address]['dll']][
                     self.ql.loader.import_symbols[address]['ordinal']]
             else:
-                winapi_name = winapi_name.decode()
+                self.winapi_name = self.winapi_name.decode()
             winapi_func = None
 
-            if winapi_name in self.user_defined_api:
-                if isinstance(self.user_defined_api[winapi_name], types.FunctionType):
-                    winapi_func = self.user_defined_api[winapi_name]
+            if self.winapi_name in self.user_defined_api:
+                if isinstance(self.user_defined_api[self.winapi_name], types.FunctionType):
+                    winapi_func = self.user_defined_api[self.winapi_name]
             else:
                 try:
-                    counter = self.syscall_count.get(winapi_name, 0) + 1
-                    self.syscall_count[winapi_name] = counter
-                    winapi_func = globals()['hook_' + winapi_name]
+                    counter = self.syscall_count.get(self.winapi_name, 0) + 1
+                    self.syscall_count[self.winapi_name] = counter
+                    winapi_func = globals()['hook_' + self.winapi_name]
                 except KeyError:
                     winapi_func = None
-            
-            if winapi_name in self.user_defined_api_onenter:
-                if isinstance(self.user_defined_api_onenter[winapi_name], types.FunctionType):
-                    self.winapi_func_onenter = self.user_defined_api_onenter[winapi_name]
+            if self.winapi_name in self.user_defined_api_onenter:
+                if isinstance(self.user_defined_api_onenter[self.winapi_name], types.FunctionType):
+                    self.winapi_func_onenter = self.user_defined_api_onenter[self.winapi_name]
             else:
                 if "*" in self.user_defined_api_onenter:
                     self.winapi_func_onenter = self.user_defined_api_onenter["*"]
                 else:
                     self.winapi_func_onenter = None
 
-            if winapi_name in self.user_defined_api_onexit:
-                if isinstance(self.user_defined_api_onexit[winapi_name], types.FunctionType):
-                    self.winapi_func_onexit = self.user_defined_api_onexit[winapi_name]
+            if self.winapi_name in self.user_defined_api_onexit:
+                if isinstance(self.user_defined_api_onexit[self.winapi_name], types.FunctionType):
+                    self.winapi_func_onexit = self.user_defined_api_onexit[self.winapi_name]
             else:
                 self.winapi_func_onexit = None
 
@@ -114,11 +113,11 @@ class QlOsWindows(QlOs):
                     winapi_func(self.ql, address, {})
                         
                 except Exception:
-                    self.ql.nprint("[!] %s Exception Found" % winapi_name)
+                    self.ql.nprint("[!] %s Exception Found" % self.winapi_name)
                     self.emu_error()
                     raise QlErrorSyscallError("[!] Windows API Implementation Error")
             else:
-                self.ql.nprint("[!] %s is not implemented" % winapi_name)
+                self.ql.nprint("[!] %s is not implemented" % self.winapi_name)
                 if self.ql.debug_stop:
                     raise QlErrorSyscallNotFound("[!] Windows API Implementation Not Found")
 
