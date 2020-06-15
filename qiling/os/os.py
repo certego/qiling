@@ -193,17 +193,29 @@ class QlOs(QLOsUtils):
         # read params
         if params is not None:
             param_num = self.set_function_params(params, args[2])
-        
+
         if isinstance(self.winapi_func_onenter, types.FunctionType):
-            address, params = self.winapi_func_onenter( *args, **kwargs)
+            address, params = self.winapi_func_onenter(*args, **kwargs)
             args = (self.ql, address, params)
             onEnter = True
         else:
-            onEnter = False  
+            onEnter = False
 
-        # call function
+            # call function
         result = func(*args, **kwargs)
-        
+
+        names = func.__name__.split("hook_")
+
+        name = names[1] if len(names) > 1 else names[0]
+
+        self.syscalls.setdefault(name, []).append({
+            "params": args[2],
+            "result": result,
+            "return_address": self.ql.stack_read(0),
+            "position": self.syscalls_counter
+        })
+        self.syscalls_counter += 1
+
         if isinstance(self.winapi_func_onexit, types.FunctionType):
             self.winapi_func_onexit(*args, **kwargs)
 
@@ -223,18 +235,18 @@ class QlOs(QLOsUtils):
             # printfs are shit
             if params is not None:
                 self.set_function_params(params, params_with_values)
-        self.syscalls.setdefault(name, []).append({
-            "params": params_with_values,
-            "result": result,
-            "address": address,
-            "return_address": return_address,
-            "position": self.syscalls_counter
-        })
-        if self.syscalls_counter in self.ql.timed_hooks.keys():
-            for func in self.ql.timed_hooks[self.ql.os.syscalls_counter]:
-                func(self.ql)
-
-        self.ql.os.syscalls_counter += 1
+        # self.syscalls.setdefault(name, []).append({
+        #     "params": params_with_values,
+        #     "result": result,
+        #     "address": address,
+        #     "return_address": return_address,
+        #     "position": self.syscalls_counter
+        # })
+        # if self.syscalls_counter in self.ql.timed_hooks.keys():
+        #     for func in self.ql.timed_hooks[self.ql.os.syscalls_counter]:
+        #         func(self.ql)
+        #
+        # self.ql.os.syscalls_counter += 1
 
 
     def x86_stdcall(self, param_num, params, func, args, kwargs):

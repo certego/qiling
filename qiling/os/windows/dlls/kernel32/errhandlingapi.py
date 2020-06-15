@@ -26,9 +26,11 @@ def hook_SetUnhandledExceptionFilter(ql, address, params):
     if handle is None:
         handle = Handle(name="TopLevelExceptionHandler", obj=addr)
         ql.os.handle_manager.append(handle)
+        ret = addr
     else:
+        ret = handle.obj
         handle.obj = addr
-    return 0
+    return ret
 
 
 # _Post_equals_last_error_ DWORD GetLastError();
