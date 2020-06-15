@@ -11,7 +11,7 @@ from unicorn import *
 import struct, os, re, socket
 from binascii import unhexlify
 
-from qiling.debugger.gdbserver import qldbg
+from qiling.extensions.debugger.gdbserver import qldbg
 from qiling.const import *
 from qiling.utils import *
 from qiling.arch.x86_const import reg_map_32 as x86_reg_map_32
@@ -155,13 +155,13 @@ class GDBSERVERsession(object):
             def handle_g(subcmd):
                 s = ''
                 if self.ql.archtype== QL_ARCH.X86:
-                    for reg in self.tables[QL_ARCH.X86]:
+                    for reg in self.tables[QL_ARCH.X86][:16]:
                         r = self.ql.reg.read(reg)
                         tmp = self.ql.arch.addr_to_str(r)
                         s += tmp
 
                 elif self.ql.archtype== QL_ARCH.X8664:
-                    for reg in self.tables[QL_ARCH.X8664]:
+                    for reg in self.tables[QL_ARCH.X8664][:24]:
                         r = self.ql.reg.read(reg)
                         if self.ql.reg.bit(reg) == 64:
                             tmp = self.ql.arch.addr_to_str(r)

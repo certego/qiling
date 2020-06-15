@@ -17,7 +17,7 @@ from .utils import ql_setup_logging_env, ql_setup_logging_stream
 from .core_struct import QLCoreStructs
 from .core_hooks import QLCoreHooks
 from .core_utils import QLCoreUtils
-from .debugger import ql_debugger_init
+from .extensions.debugger import ql_debugger_init
 
 __version__ = "1.1" + "-dev"
 
@@ -242,7 +242,7 @@ class Qiling(QLCoreStructs, QLCoreHooks, QLCoreUtils):
             try:
                 self.mem.write(self.mem.get_lib_base(filename) + addr, code)
             except:
-                raise RuntimeError("Fail to patch filename %s at addr 0x%x" % (filename, addr))
+                raise RuntimeError("Fail to patch %s at address 0x%x" % (filename, addr))
 
     # stop emulation
     def emu_stop(self):
