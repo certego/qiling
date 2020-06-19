@@ -17,8 +17,11 @@ class QlOs(QLOsUtils):
         self.ql = ql
         self.ql.uc = self.ql.arch.init_uc
         self.stdin = ql_file('stdin', sys.stdin.fileno())
-        self.stdout = ql_file('stdout', sys.stdout.fileno())
-        self.stderr = ql_file('stderr', sys.stderr.fileno())
+        # Workaround for UnitTest
+        self.stdout = ql_file('stdout', 2)
+        self.stdout = ql_file('stdout', 3)
+        # self.stderr = ql_file('stderr', sys.stderr.fileno())
+        # self.stderr = ql_file('stderr', sys.stderr.fileno())
         self.child_processes = False
         self.thread_management = None
         self.current_path = '/'
