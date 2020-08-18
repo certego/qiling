@@ -4,14 +4,14 @@
 ---
 
 <p align="center">
-<img width="150" height="150" src="docs/qiling_small.png">
+<img width="150" height="150" src="https://raw.githubusercontent.com/qilingframework/qiling/master/docs/qiling_small.png">
 </p>
 
 Qiling is an advanced binary emulation framework, with the following features:
 
-- Cross platform: Windows, MacOS, Linux, BSD, UEFI
-- Cross architecture: X86, X86_64, Arm, Arm64, MIPS
-- Multiple file formats: PE, MachO, ELF
+- Cross platform: Windows, MacOS, Linux, BSD, UEFI, DOS
+- Cross architecture: X86, X86_64, Arm, Arm64, MIPS, 8086
+- Multiple file formats: PE, MachO, ELF, COM
 - Emulate & sandbox machine code in a isolated environment
 - Supports cross architecture and platform debugging capabilities
 - Provide high level API to setup & configure the sandbox
@@ -27,7 +27,7 @@ Visit our website https://www.qiling.io for more information.
 
 #### License
 
-This project is released and distributed under [free software license GPLv2](COPYING).
+This project is released and distributed under [free software license GPLv2](https://github.com/qilingframework/qiling/blob/master/COPYING).
 
 ---
 
@@ -49,12 +49,12 @@ Qemu usermode does similar thing to our emulator, that is to emulate whole execu
 - Qiling is a true analysis framework, that allows you to build your own dynamic analysis tools on top (in friendly Python language). Meanwhile, Qemu is just a tool, not a framework.
 - Qiling can perform dynamic instrumentation, and can even hotpatch code at runtime. Qemu does not do either.
 - Not only working cross-architecture, Qiling is also cross-platform, so for example you can run Linux ELF file on top of Windows. In contrast, Qemu usermode only run binary of the same OS, such as Linux ELF on Linux, due to the way it forwards syscall from emulated code to native OS.
-- Qiling supports more platforms, including Windows, MacOS, Linux & BSD. Qemu usermode can only handles Linux & BSD.
+- Qiling supports more platforms, including Windows, MacOS, Linux & BSD. Qemu usermode can only handle Linux & BSD.
 
 ---
 
 #### Installation
-Please see [setup guide](https://docs.qiling.io/en/latest/howto/) file for how to install Qiling Framework.
+Please see [setup guide](https://docs.qiling.io/en/latest/install/) file for how to install Qiling Framework.
 
 ---
 
@@ -121,7 +121,7 @@ The below Youtube video shows how the above example works.
 
 #### Fuzzing with Qiling Unicornalf
 
-- More information on fuzzing with Qiling Unicornalf can be found [here](https://github.com/qilingframework/qiling/tree/dev/examples/fuzzing/README.md).
+- More information on fuzzing with Qiling Unicornalf can be found [here](https://github.com/qilingframework/qiling/blob/dev/examples/fuzz_example_x64/README.md).
 
 [![qiling DEMO 2: Fuzzing with Qiling Unicornalf](https://raw.githubusercontent.com/qilingframework/qilingframework.github.io/master/images/qilingfzz-s.png)](https://raw.githubusercontent.com/qilingframework/qiling/dev/examples/fuzzing/qilingfzz.png "Demo #2 Fuzzing with Qiling Unicornalf")
 
@@ -199,5 +199,16 @@ Contact us at email info@qiling.io, or via Twitter [@qiling_io](https://twitter.
 - YU tong (sp1ke) <spikeinhouse@gmail.com>
 - Earl Marcus (klks84) klks84@gmail.com 
 
-#### Travis-CI, Docker and Website
+#### Travis-CI, Docker, Website and Documentation
+
 - FOO Kevin (chfl4gs) <chbsd64@qiling.io>
+
+#### Key Contributors (in no particular order)
+
+- lazymio
+- kabeor
+- 0ssigeno
+- liba2k
+- assafcarlsbad
+- ucgJhe
+- jhumble

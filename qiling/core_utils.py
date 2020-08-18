@@ -5,11 +5,7 @@
 
 import os, logging, configparser
 
-try:
-    from keystone import *
-except:
-    pass
-
+from keystone import *
 from binascii import unhexlify
 
 from .utils import ql_build_module_import_name, ql_get_module_function
@@ -17,11 +13,11 @@ from .utils import ql_is_valid_arch, ql_is_valid_ostype
 from .utils import loadertype_convert_str, ostype_convert_str, arch_convert_str
 from .utils import ql_setup_filter
 from .const import QL_OS, QL_OS_ALL, QL_ARCH, QL_ENDIAN, QL_OUTPUT
-from .const import D_INFO
+from .const import D_INFO, D_DRPT
 from .exception import QlErrorArch, QlErrorOsType, QlErrorOutput
 from .loader.utils import ql_checkostype
 
-class QLCoreUtils(object):
+class QlCoreUtils(object):
     def __init__(self):
         super().__init__()
         self.archtype = None
@@ -36,7 +32,7 @@ class QLCoreUtils(object):
         else:
             raise QlErrorOutput("[!] console must be True or False")     
         
-        # FIXME: this is due to console must be able to update duirng runtime
+        # FIXME: this is due to console must be able to update during runtime
         if self.log_file_fd is not None:
             if self.multithread == True and self.os.thread_management is not None and self.os.thread_management.cur_thread is not None:
                 fd = self.os.thread_management.cur_thread.log_file_fd
@@ -65,10 +61,8 @@ class QLCoreUtils(object):
                         if '_FalseFilter' in each_filter.__class__.__name__:
                             each_console_handler.removeFilter(each_filter)
             
-            if isinstance(args, tuple) or isinstance(args, list):
-                msg = "".join(args)
-            else:
-                msg = "".join(str(args))
+            args = map(str, args)
+            msg = kw.get("sep", " ").join(args)
 
             if kw.get("end", None) != None:
                 msg += kw["end"]
@@ -93,11 +87,14 @@ class QLCoreUtils(object):
             self.verbose = 99
 
         if int(self.verbose) >= level and self.output in (QL_OUTPUT.DEBUG, QL_OUTPUT.DUMP):
+            if int(self.verbose) >= D_DRPT:
+                args = (("0x%x:" % self.reg.arch_pc), *args)
+                
             self.nprint(*args, **kw)
 
 
-    def add_fs_mapper(self, host_src, ql_dest):
-        self.fs_mapper.append([host_src, ql_dest])
+    def add_fs_mapper(self, ql_path, real_dest):
+        self.os.fs_mapper.add_fs_mapping(ql_path, real_dest)
 
 
     # push to stack bottom, and update stack register
@@ -126,10 +123,15 @@ class QLCoreUtils(object):
         if not ql_is_valid_arch(self.archtype):
             raise QlErrorArch("[!] Invalid Arch")
         
-        archmanager = arch_convert_str(self.archtype).upper()
+        if self.archtype == QL_ARCH.ARM_THUMB:
+            archtype =  QL_ARCH.ARM
+        else:
+            archtype = self.archtype
+
+        archmanager = arch_convert_str(archtype).upper()
         archmanager = ("QlArch" + archmanager)
 
-        module_name = ql_build_module_import_name("arch", None, self.archtype)
+        module_name = ql_build_module_import_name("arch", None, archtype)
         return ql_get_module_function(module_name, archmanager)(self)
 
 
@@ -207,12 +209,6 @@ class QLCoreUtils(object):
 
 
     def compile(self, archtype, runcode, arm_thumb=None):
-        try:
-            loadarch = KS_ARCH_X86
-        except:
-            raise QlErrorOutput("Please install Keystone Engine")
-
-
         def ks_convert(arch):
             if self.archendian == QL_ENDIAN.EB:
                 adapter = {
@@ -254,3 +250,26 @@ class QLCoreUtils(object):
 
         archtype, archmode = ks_convert(archtype)
         return compile_instructions(runcode, archtype, archmode)        
+
+
+class QlFileDes:
+    def __init__(self, init):
+        self.__fds = init
+
+    def __getitem__(self, idx):
+        return self.__fds[idx]
+
+    def __setitem__(self, idx, val):
+        self.__fds[idx] = val
+
+    def __iter__(self):
+        return iter(self.__fds)
+
+    def __repr__(self):
+        return repr(self.__fds)
+    
+    def save(self):
+        return self.__fds
+
+    def restore(self, fds):
+        self.__fds = fds

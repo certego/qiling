@@ -3,7 +3,7 @@
 # Cross Platform and Multi Architecture Advanced Binary Emulation Framework
 # Built on top of Unicorn emulator (www.unicorn-engine.org) 
 
-import sys, random, unittest
+import os, random, sys, unittest
 import string as st
 from binascii import unhexlify
 
@@ -14,9 +14,11 @@ from qiling.const import *
 from qiling.exception import *
 from qiling.os.windows.fncc import *
 from qiling.os.windows.utils import *
+from qiling.os.mapper import QlFsMappedObject
 from unicorn.x86_const import *
 
 class PETest(unittest.TestCase):
+
     def test_pe_win_x8664_hello(self):
         ql = Qiling(["../examples/rootfs/x8664_windows/bin/x8664_hello.exe"], "../examples/rootfs/x8664_windows",
                     output="default")
@@ -33,13 +35,33 @@ class PETest(unittest.TestCase):
 
 
     def test_pe_win_x86_uselessdisk(self):
+        if 'QL_FAST_TEST' in os.environ:
+            return
+        class Fake_Drive(QlFsMappedObject):
+
+            def read(self, size):
+                return random.randint(0, 256)
+            
+            def write(self, bs):
+                print(bs)
+                return
+
+            def fstat(self):
+                return -1
+            
+            def close(self):
+                return 0
+
         ql = Qiling(["../examples/rootfs/x86_windows/bin/UselessDisk.bin"], "../examples/rootfs/x86_windows",
                     output="debug")
+        ql.add_fs_mapper(r"\\.\PHYSICALDRIVE0", Fake_Drive())
         ql.run()
         del ql
 
 
     def test_pe_win_x86_gandcrab(self):
+        if 'QL_FAST_TEST' in os.environ:
+            return
         def stop(ql, default_values):
             print("Ok for now")
             ql.emu_stop()
@@ -160,6 +182,8 @@ class PETest(unittest.TestCase):
 
 
     def test_pe_win_x86_wannacry(self):
+        if 'QL_FAST_TEST' in os.environ:
+            return
         def stop(ql):
             ql.nprint("killerswtichfound")
             ql.console = False
@@ -171,8 +195,16 @@ class PETest(unittest.TestCase):
         ql.run()
         del ql
 
+    def test_pe_win_x86_NtQueryInformationSystem(self):
+        ql = Qiling(
+        ["../examples/rootfs/x86_windows/bin/NtQuerySystemInformation.exe"],
+        "../examples/rootfs/x86_windows")
+        ql.run()
+        del ql
 
     def test_pe_win_al_khaser(self):
+        if 'QL_FAST_TEST' in os.environ:
+            return
         ql = Qiling(["../examples/rootfs/x86_windows/bin/al-khaser.bin"], "../examples/rootfs/x86_windows")
 
         # The hooks are to remove the prints to file. It crashes. will debug why in the future
@@ -200,9 +232,7 @@ class PETest(unittest.TestCase):
 
 
     def test_pe_win_x8664_customapi(self):
-        @winapi(cc=CDECL, params={
-            "str": STRING
-        })
+        @winsdkapi(cc=CDECL, replace_params={"str": STRING})
         def my_puts64(ql, address, params):
             ret = 0
             print("\n+++++++++ My Windows 64bit Windows API +++++++++\n")

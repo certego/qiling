@@ -9,6 +9,7 @@ from qiling import *
 from qiling.const import *
 from qiling.exception import *
 from qiling.os.posix import syscall
+from qiling.os.mapper import QlFsMappedObject
 
 class ELFTest(unittest.TestCase):
 
@@ -17,10 +18,11 @@ class ELFTest(unittest.TestCase):
             try:
                 buf = ql.mem.read(write_buf, write_count)
                 buf = buf.decode()
-                if buf.startswith("thread 2 ret"):
+                if buf.startswith("thread 2 ret") == True:
                     ql.buf_out = buf
             except:
                 pass
+
         ql = Qiling(["../examples/rootfs/x86_linux/bin/x86_multithreading"], "../examples/rootfs/x86_linux")
         ql.multithread = True
         ql.set_syscall("write", check_write, QL_INTERCEPT.ENTER)
@@ -30,13 +32,14 @@ class ELFTest(unittest.TestCase):
         
         del ql
 
-
+    
     def test_multithread_elf_linux_arm64(self):
         def check_write(ql, write_fd, write_buf, write_count, *args, **kw):
+            buf = ""
             try:
                 buf = ql.mem.read(write_buf, write_count)
                 buf = buf.decode()
-                if buf.startswith("thread 2 ret"):
+                if buf.startswith("thread 2 ret") == True:
                     ql.buf_out = buf
             except:
                 pass
@@ -56,7 +59,7 @@ class ELFTest(unittest.TestCase):
             try:
                 buf = ql.mem.read(write_buf, write_count)
                 buf = buf.decode()
-                if buf.startswith("thread 2 ret"):
+                if buf.startswith("thread 2 ret") == True:
                     ql.buf_out = buf
             except:
                 pass
@@ -77,7 +80,7 @@ class ELFTest(unittest.TestCase):
             try:
                 buf = ql.mem.read(write_buf, write_count)
                 buf = buf.decode()
-                if buf.startswith("thread 2 ret"):
+                if buf.startswith("thread 2 ret") == True:
                     ql.buf_out = buf
             except:
                 pass
@@ -95,7 +98,7 @@ class ELFTest(unittest.TestCase):
             try:
                 buf = ql.mem.read(write_buf, write_count)
                 buf = buf.decode()
-                if buf.startswith("thread 2 ret"):
+                if buf.startswith("thread 2 ret") == True:
                     ql.buf_out = buf
             except:
                 pass
@@ -122,12 +125,28 @@ class ELFTest(unittest.TestCase):
         ql.run()
         del ql
 
-    def test_elf_partial_linux_x8664(self): 
+
+    def test_elf_partial_linux_x8664(self):
+        ss = None
+
+        def dump(ql, *args, **kw):
+            ql.save(reg=False, cpu_context=True, snapshot="/tmp/snapshot.bin")
+            ql.emu_stop()
+
         ql = Qiling(["../examples/rootfs/x8664_linux/bin/sleep_hello"], "../examples/rootfs/x8664_linux", output= "default")
         X64BASE = int(ql.profile.get("OS64", "load_address"), 16)
+        ql.hook_address(dump, X64BASE + 0x1094)
+        ql.run()
+
+        ql = Qiling(["../examples/rootfs/x8664_linux/bin/sleep_hello"], "../examples/rootfs/x8664_linux", output= "debug", verbose=4)
+        X64BASE = int(ql.profile.get("OS64", "load_address"), 16)
+        ql.restore(snapshot="/tmp/snapshot.bin")
         begin_point = X64BASE + 0x109e
         end_point = X64BASE + 0x10bc
         ql.run(begin = begin_point, end = end_point)
+
+        del ql
+
 
     def test_elf_linux_x8664(self):
         def my_puts(ql):
@@ -155,9 +174,11 @@ class ELFTest(unittest.TestCase):
         ql.set_syscall(1, write_onexit, QL_INTERCEPT.EXIT)
         ql.mem.map(0x1000, 0x1000)
         ql.mem.write(0x1000, b"\xFF\xFE\xFD\xFC\xFB\xFA\xFB\xFC\xFC\xFE\xFD")
+        ql.mem.map(0x2000, 0x1000)
+        ql.mem.write(0x2000, b"\xFF\xFE\xFD\xFC\xFB\xFA\xFB\xFC\xFC\xFE\xFD")
         ql.run()
 
-        self.assertEqual([0x1000], ql.mem.search(b"\xFF\xFE\xFD\xFC\xFB\xFA\xFB\xFC\xFC\xFE\xFD"))
+        self.assertEqual([0x1000,0x2000], ql.mem.search(b"\xFF\xFE\xFD\xFC\xFB\xFA\xFB\xFC\xFC\xFE\xFD"))
         self.assertEqual(93824992233162, self.set_api)
         self.assertEqual(True, self.set_api_onexit)
         self.assertEqual(True, self.set_api_onenter)
@@ -169,27 +190,78 @@ class ELFTest(unittest.TestCase):
 
 
     def test_tcp_elf_linux_x86(self):
+        def check_write(ql, write_fd, write_buf, write_count, *args, **kw):
+            try:
+                buf = ql.mem.read(write_buf, write_count)
+                buf = buf.decode()
+                if buf.startswith("server write()"):
+                    ql.buf_out = buf
+            except:
+                pass        
         ql = Qiling(["../examples/rootfs/x86_linux/bin/x86_tcp_test","20004"], "../examples/rootfs/x86_linux")
         ql.multithread = True
+        ql.set_syscall("write", check_write, QL_INTERCEPT.ENTER)
         ql.run()
+        
+        self.assertEqual("server write() 14 return 14.\n", ql.buf_out)
+
         del ql
-    
+
+
     def test_tcp_elf_linux_arm64(self):
+        def check_write(ql, write_fd, write_buf, write_count, *args, **kw):
+            try:
+                buf = ql.mem.read(write_buf, write_count)
+                buf = buf.decode()
+                if buf.startswith("server write()"):
+                    ql.buf_out = buf
+            except:
+                pass        
         ql = Qiling(["../examples/rootfs/arm64_linux/bin/arm64_tcp_test","20005"], "../examples/rootfs/arm64_linux")
         ql.multithread = True
+        ql.set_syscall("write", check_write, QL_INTERCEPT.ENTER)
         ql.run()
+        
+        self.assertEqual("server write() 14 return 14.\n", ql.buf_out)
+        
         del ql
+
 
     def test_tcp_elf_linux_x8664(self):
+        def check_write(ql, write_fd, write_buf, write_count, *args, **kw):
+            try:
+                buf = ql.mem.read(write_buf, write_count)
+                buf = buf.decode()
+                if buf.startswith("server write()"):
+                    ql.buf_out = buf
+            except:
+                pass           
         ql = Qiling(["../examples/rootfs/x8664_linux/bin/x8664_tcp_test","20001"], "../examples/rootfs/x8664_linux")
         ql.multithread = True
+        ql.set_syscall("write", check_write, QL_INTERCEPT.ENTER)
         ql.run()
+        
+        self.assertEqual("server write() 14 return 14.\n", ql.buf_out)
+        
         del ql
 
+
     def test_tcp_elf_linux_arm(self):
+        def check_write(ql, write_fd, write_buf, write_count, *args, **kw):
+            try:
+                buf = ql.mem.read(write_buf, write_count)
+                buf = buf.decode()
+                if buf.startswith("server write()"):
+                    ql.buf_out = buf
+            except:
+                pass           
         ql = Qiling(["../examples/rootfs/arm_linux/bin/arm_tcp_test","20002"], "../examples/rootfs/arm_linux")
         ql.multithread = True
+        ql.set_syscall("write", check_write, QL_INTERCEPT.ENTER)
         ql.run()
+        
+        self.assertEqual("server write() 14 return 14.\n", ql.buf_out)
+        
         del ql
 
 
@@ -221,7 +293,7 @@ class ELFTest(unittest.TestCase):
     def test_elf_linux_x86_posix_syscall(self):
         def test_syscall_read(ql, read_fd, read_buf, read_count, *args):
             target = False
-            pathname = ql.os.file_des[read_fd].name.split('/')[-1]
+            pathname = ql.os.fd[read_fd].name.split('/')[-1]
         
             if pathname == "test_syscall_read.txt":
                 print("test => read(%d, %s, %d)" % (read_fd, pathname, read_count))
@@ -230,14 +302,14 @@ class ELFTest(unittest.TestCase):
             syscall.ql_syscall_read(ql, read_fd, read_buf, read_count, *args)
 
             if target:
-                real_path = ql.os.file_des[read_fd].name
+                real_path = ql.os.fd[read_fd].name
                 with open(real_path) as fd:
                     assert fd.read() == ql.mem.read(read_buf, read_count).decode()
                 os.remove(real_path)
 
         def test_syscall_write(ql, write_fd, write_buf, write_count, *args):
             target = False
-            pathname = ql.os.file_des[write_fd].name.split('/')[-1]
+            pathname = ql.os.fd[write_fd].name.split('/')[-1]
 
             if pathname == "test_syscall_write.txt":
                 print("test => write(%d, %s, %d)" % (write_fd, pathname, write_count))
@@ -246,7 +318,7 @@ class ELFTest(unittest.TestCase):
             syscall.ql_syscall_write(ql, write_fd, write_buf, write_count, *args)
 
             if target:
-                real_path = ql.os.file_des[write_fd].name
+                real_path = ql.os.fd[write_fd].name
                 with open(real_path) as fd:
                     assert fd.read() == 'Hello testing\x00'
                 os.remove(real_path)
@@ -297,7 +369,7 @@ class ELFTest(unittest.TestCase):
 
         def test_syscall_ftruncate(ql, ftrunc_fd, ftrunc_length, *args):
             target = False
-            pathname = ql.os.file_des[ftrunc_fd].name.split('/')[-1]
+            pathname = ql.os.fd[ftrunc_fd].name.split('/')[-1]
             
             reg = ql.reg.read("eax")
             print("reg : 0x%x" % reg)
@@ -329,6 +401,8 @@ class ELFTest(unittest.TestCase):
         def my_puts(ql):
             addr = ql.os.function_arg[0]
             print("puts(%s)" % ql.mem.string(addr))
+            all_mem = ql.mem.save()
+            ql.mem.restore(all_mem)
             
         ql = Qiling(["../examples/rootfs/arm_linux/bin/arm_hello"], "../examples/rootfs/arm_linux", output = "debug", profile='profiles/append_test.ql')
         ql.log_split=True
@@ -349,7 +423,7 @@ class ELFTest(unittest.TestCase):
     # def test_elf_linux_arm_posix_syscall(self):
         # def test_syscall_read(ql, read_fd, read_buf, read_count, *args):
             # target = False
-            # pathname = ql.os.file_des[read_fd].name.split('/')[-1]
+            # pathname = ql.os.fd[read_fd].name.split('/')[-1]
         
             # if pathname == "test_syscall_read.txt":
                 # print("test => read(%d, %s, %d)" % (read_fd, pathname, read_count))
@@ -358,14 +432,14 @@ class ELFTest(unittest.TestCase):
             # syscall.ql_syscall_read(ql, read_fd, read_buf, read_count, *args)
 
             # if target:
-                # real_path = ql.os.file_des[read_fd].name
+                # real_path = ql.os.fd[read_fd].name
                 # with open(real_path) as fd:
                     # assert fd.read() == ql.mem.read(read_buf, read_count).decode()
                 # os.remove(real_path)
  
         # def test_syscall_write(ql, write_fd, write_buf, write_count, *args):
             # target = False
-            # pathname = ql.os.file_des[write_fd].name.split('/')[-1]
+            # pathname = ql.os.fd[write_fd].name.split('/')[-1]
 
             # if pathname == "test_syscall_write.txt":
                 # print("test => write(%d, %s, %d)" % (write_fd, pathname, write_count))
@@ -374,7 +448,7 @@ class ELFTest(unittest.TestCase):
             # syscall.ql_syscall_write(ql, write_fd, write_buf, write_count, *args)
 
             # if target:
-                # real_path = ql.os.file_des[write_fd].name
+                # real_path = ql.os.fd[write_fd].name
                 # with open(real_path) as fd:
                     # assert fd.read() == 'Hello testing\x00'
                 # os.remove(real_path)
@@ -425,7 +499,7 @@ class ELFTest(unittest.TestCase):
 
         # def test_syscall_ftruncate(ql, ftrunc_fd, ftrunc_length, *args):
             # target = False
-            # pathname = ql.os.file_des[ftrunc_fd].name.split('/')[-1]
+            # pathname = ql.os.fd[ftrunc_fd].name.split('/')[-1]
 
             # if pathname == "test_syscall_ftruncate.txt":
                 # print("test => ftruncate(%d, 0x%x)" % (ftrunc_fd, ftrunc_length))
@@ -496,7 +570,7 @@ class ELFTest(unittest.TestCase):
     def test_elf_linux_arm64_posix_syscall(self):
         def test_syscall_read(ql, read_fd, read_buf, read_count, *args):
             target = False
-            pathname = ql.os.file_des[read_fd].name.split('/')[-1]
+            pathname = ql.os.fd[read_fd].name.split('/')[-1]
             
             reg = ql.reg.read("x0")
             print("reg : 0x%x" % reg)
@@ -509,14 +583,15 @@ class ELFTest(unittest.TestCase):
             syscall.ql_syscall_read(ql, read_fd, read_buf, read_count, *args)
 
             if target:
-                real_path = ql.os.file_des[read_fd].name
+                real_path = ql.os.fd[read_fd].name
                 with open(real_path) as fd:
                     assert fd.read() == ql.mem.read(read_buf, read_count).decode()
                 os.remove(real_path)
- 
+
+
         def test_syscall_write(ql, write_fd, write_buf, write_count, *args):
             target = False
-            pathname = ql.os.file_des[write_fd].name.split('/')[-1]
+            pathname = ql.os.fd[write_fd].name.split('/')[-1]
 
             if pathname == "test_syscall_write.txt":
                 print("test => write(%d, %s, %d)" % (write_fd, pathname, write_count))
@@ -525,10 +600,11 @@ class ELFTest(unittest.TestCase):
             syscall.ql_syscall_write(ql, write_fd, write_buf, write_count, *args)
 
             if target:
-                real_path = ql.os.file_des[write_fd].name
+                real_path = ql.os.fd[write_fd].name
                 with open(real_path) as fd:
                     assert fd.read() == 'Hello testing\x00'
                 os.remove(real_path)
+
 
         def test_syscall_openat(ql, openat_fd, openat_path, openat_flags, openat_mode, *args):
             target = False
@@ -545,6 +621,7 @@ class ELFTest(unittest.TestCase):
                 assert os.path.isfile(real_path) == True
                 os.remove(real_path)
 
+
         def test_syscall_unlink(ql, unlink_pathname, *args):
             target = False
             pathname = ql.mem.string(unlink_pathname)
@@ -558,6 +635,7 @@ class ELFTest(unittest.TestCase):
             if target:
                 real_path = ql.os.transform_to_real_path(pathname)
                 assert os.path.isfile(real_path) == False
+
 
         def test_syscall_truncate(ql, trunc_pathname, trunc_length, *args):
             target = False
@@ -574,9 +652,10 @@ class ELFTest(unittest.TestCase):
                 assert os.stat(real_path).st_size == 0
                 os.remove(real_path)
 
+
         def test_syscall_ftruncate(ql, ftrunc_fd, ftrunc_length, *args):
             target = False
-            pathname = ql.os.file_des[ftrunc_fd].name.split('/')[-1]
+            pathname = ql.os.fd[ftrunc_fd].name.split('/')[-1]
 
             if pathname == "test_syscall_ftruncate.txt":
                 print("test => ftruncate(%d, 0x%x)" % (ftrunc_fd, ftrunc_length))
@@ -621,7 +700,7 @@ class ELFTest(unittest.TestCase):
     def test_elf_linux_mips32el_posix_syscall(self):
         def test_syscall_read(ql, read_fd, read_buf, read_count, *args):
             target = False
-            pathname = ql.os.file_des[read_fd].name.split('/')[-1]
+            pathname = ql.os.fd[read_fd].name.split('/')[-1]
             
             reg = ql.reg.read("v0")
             print("reg : 0x%x" % reg)
@@ -634,14 +713,14 @@ class ELFTest(unittest.TestCase):
             syscall.ql_syscall_read(ql, read_fd, read_buf, read_count, *args)
 
             if target:
-                real_path = ql.os.file_des[read_fd].name
+                real_path = ql.os.fd[read_fd].name
                 with open(real_path) as fd:
                     assert fd.read() == ql.mem.read(read_buf, read_count).decode()
                 os.remove(real_path)
  
         def test_syscall_write(ql, write_fd, write_buf, write_count, *args):
             target = False
-            pathname = ql.os.file_des[write_fd].name.split('/')[-1]
+            pathname = ql.os.fd[write_fd].name.split('/')[-1]
 
             if pathname == "test_syscall_write.txt":
                 print("test => write(%d, %s, %d)" % (write_fd, pathname, write_count))
@@ -650,7 +729,7 @@ class ELFTest(unittest.TestCase):
             syscall.ql_syscall_write(ql, write_fd, write_buf, write_count, *args)
 
             if target:
-                real_path = ql.os.file_des[write_fd].name
+                real_path = ql.os.fd[write_fd].name
                 with open(real_path) as fd:
                     assert fd.read() == 'Hello testing\x00'
                 os.remove(real_path)
@@ -701,7 +780,7 @@ class ELFTest(unittest.TestCase):
 
         def test_syscall_ftruncate(ql, ftrunc_fd, ftrunc_length, *args):
             target = False
-            pathname = ql.os.file_des[ftrunc_fd].name.split('/')[-1]
+            pathname = ql.os.fd[ftrunc_fd].name.split('/')[-1]
 
             if pathname == "test_syscall_ftruncate.txt":
                 print("test => ftruncate(%d, 0x%x)" % (ftrunc_fd, ftrunc_length))
@@ -739,7 +818,7 @@ class ELFTest(unittest.TestCase):
             try:
                 buf = ql.mem.read(write_buf, write_count)
                 ql.nprint("\n+++++++++\nmy write(%d,%x,%i) = %d\n+++++++++" % (write_fd, write_buf, write_count, regreturn))
-                ql.os.file_des[write_fd].write(buf)
+                ql.os.fd[write_fd].write(buf)
                 regreturn = write_count
             except:
                 regreturn = -1
@@ -841,6 +920,67 @@ class ELFTest(unittest.TestCase):
         del ql
 
 
+    def test_x86_fake_urandom(self):
+        class Fake_urandom(QlFsMappedObject):
+
+            def read(self, size):
+                return b"\x01"
+
+            def fstat(self):
+                return -1
+            
+            def close(self):
+                return 0
+
+        ql = Qiling(["../examples/rootfs/x86_linux/bin/x86_fetch_urandom"],  "../examples/rootfs/x86_linux", output="debug")
+        ql.add_fs_mapper("/dev/urandom", Fake_urandom())
+
+        ql.exit_code = 0
+        ql.exit_group_code = 0
+
+        def check_exit_group_code(ql, exit_code, *args, **kw):
+            ql.exit_group_code = exit_code
+
+        def check_exit_code(ql, exit_code, *args, **kw):
+            ql.exit_code = exit_code            
+
+        ql.set_syscall("exit_group", check_exit_group_code, QL_INTERCEPT.ENTER)
+        ql.set_syscall("exit", check_exit_code, QL_INTERCEPT.ENTER)
+
+        ql.run()
+        self.assertEqual(0, ql.exit_code)
+        self.assertEqual(0, ql.exit_group_code)        
+        del ql
+
+
+    def test_x8664_map_urandom(self):
+        ql = Qiling(["../examples/rootfs/x8664_linux/bin/x8664_fetch_urandom"],  "../examples/rootfs/x8664_linux", output="debug")
+        ql.add_fs_mapper("/dev/urandom","/dev/urandom")
+        
+        ql.exit_code = 0
+        ql.exit_group_code = 0
+
+        def check_exit_group_code(ql, exit_code, *args, **kw):
+            ql.exit_group_code = exit_code
+
+        def check_exit_code(ql, exit_code, *args, **kw):
+            ql.exit_code = exit_code            
+
+        ql.set_syscall("exit_group", check_exit_group_code, QL_INTERCEPT.ENTER)
+        ql.set_syscall("exit", check_exit_code, QL_INTERCEPT.ENTER)
+
+        ql.run()
+
+        self.assertEqual(0, ql.exit_code)
+        self.assertEqual(0, ql.exit_group_code)
+
+        del ql
+
+
+    def test_x8664_symlink(self):
+        ql = Qiling(["../examples/rootfs/x8664_linux_symlink/bin/x8664_hello"],  "../examples/rootfs/x8664_linux_symlink", output="debug")
+        ql.run()
+        del ql   
 
 if __name__ == "__main__":
     unittest.main()

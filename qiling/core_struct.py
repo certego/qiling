@@ -13,7 +13,7 @@ import struct
 from .const import QL_ENDIAN
 from .exception import QlErrorStructConversion
 
-class QLCoreStructs(object):
+class QlCoreStructs(object):
     def __init__(self):
         super().__init__()
         self.archendian = None
@@ -21,19 +21,32 @@ class QLCoreStructs(object):
 
 
     def unpack64(self, x):
-        return struct.unpack('Q', x)[0]
+        if self.archendian == QL_ENDIAN.EB:
+            return struct.unpack('>Q', x)[0]
+        else:
+            return struct.unpack('Q', x)[0]
+
 
 
     def pack64(self, x):
-        return struct.pack('Q', x)
+        if self.archendian == QL_ENDIAN.EB:
+            return struct.pack('>Q', x)
+        else:
+            return struct.pack('Q', x)
 
 
     def pack64s(self, x):
-        return struct.pack('q', x)
+        if self.archendian == QL_ENDIAN.EB:
+            return struct.pack('>q', x)
+        else:
+            return struct.pack('q', x)
 
 
     def unpack64s(self, x):
-        return struct.unpack('q', x)[0]
+        if self.archendian == QL_ENDIAN.EB:
+            return struct.unpack('>q', x)[0]
+        else:
+            return struct.unpack('q', x)[0]
 
 
     def unpack32(self, x):

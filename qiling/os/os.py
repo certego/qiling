@@ -5,29 +5,42 @@
 
 import os, sys, types
 
-from .utils import QLOsUtils
+from .utils import QlOsUtils
 from .const import *
 from .filestruct import ql_file
+from .mapper import QlFsMapper
 
 from qiling.const import *
 
-class QlOs(QLOsUtils):
+class QlOs(QlOsUtils):
     def __init__(self, ql):
         super(QlOs, self).__init__(ql)
         self.ql = ql
         self.ql.uc = self.ql.arch.init_uc
-        self.stdin = ql_file('stdin', sys.stdin.fileno())
+        # self.stdin = ql_file('stdin', sys.stdin.fileno())
         # Workaround for UnitTest
-        self.stdout = ql_file('stdout', 2)
-        self.stdout = ql_file('stdout', 3)
+        # self.stdout = ql_file('stdout', 2)
+        # self.stdout = ql_file('stdout', 3)
         # self.stderr = ql_file('stderr', sys.stderr.fileno())
         # self.stderr = ql_file('stderr', sys.stderr.fileno())
+
+        self.fs_mapper = QlFsMapper(ql)
         self.child_processes = False
         self.thread_management = None
         self.current_path = '/'
         self.profile = self.ql.profile
         self.exit_code = 0
         self.pid = self.profile.getint("KERNEL","pid")
+
+        if "fileno" not in dir(sys.stdin) or "fileno" not in dir(sys.stdout) or "fileno" not in dir(sys.stderr):
+            # IDAPython has some hack on standard io streams and thus they don't have corresponding fds.
+            self.stdin = sys.stdin
+            self.stdout = sys.stdout
+            self.stderr = sys.stderr
+        else:
+            self.stdin = ql_file('stdin', sys.stdin.fileno())
+            self.stdout = ql_file('stdout', sys.stdout.fileno())
+            self.stderr = ql_file('stderr', sys.stderr.fileno())
 
         if self.ql.stdin != 0:
             self.stdin = self.ql.stdin
@@ -41,7 +54,10 @@ class QlOs(QLOsUtils):
         if self.ql.archbit == 32:
             EMU_END = 0x8fffffff
         elif self.ql.archbit == 64:
-            EMU_END = 0xffffffffffffffff        
+            EMU_END = 0xffffffffffffffff
+        elif self.ql.archbit == 16:
+            # 20bit address lane
+            EMU_END = 0x1ffff   
         
         # defult exit point
         self.exit_point = EMU_END
@@ -58,6 +74,12 @@ class QlOs(QLOsUtils):
         self.appeared_strings = {}
         self.setup_output()
 
+
+    def find_containing_image(self, pc):
+        for image in self.ql.loader.images:
+            if image.base <= pc <= image.end:
+                return image
+
     def emu_error(self):
         self.ql.nprint("[!] Emulation Error")
         
@@ -69,14 +91,23 @@ class QlOs(QLOsUtils):
                 self.ql.nprint("[-] %s\t:\t 0x%x" % (REG_NAME, REG_VAL))
         
         self.ql.nprint("\n")
-        self.ql.nprint("[+] PC = 0x%x" %(self.ql.reg.arch_pc))
+        self.ql.nprint("[+] PC = 0x%x" % (self.ql.reg.arch_pc), end="")
+        containing_image = self.find_containing_image(self.ql.reg.arch_pc)
+        if containing_image:
+            offset = self.ql.reg.arch_pc - containing_image.base
+            self.ql.nprint(" (%s+0x%x)" % (containing_image.path, offset))
+        else:
+            self.ql.nprint("\n")
         self.ql.mem.show_mapinfo()
         
-        buf = self.ql.mem.read(self.ql.reg.arch_pc, 8)
-        self.ql.nprint("[+] %r" % ([hex(_) for _ in buf]))
-        
-        self.ql.nprint("\n")
-        self.disassembler(self.ql, self.ql.reg.arch_pc, 64)
+        try:
+            buf = self.ql.mem.read(self.ql.reg.arch_pc, 8)
+            self.ql.nprint("[+] %r" % ([hex(_) for _ in buf]))
+            
+            self.ql.nprint("\n")
+            self.disassembler(self.ql, self.ql.reg.arch_pc, 64)
+        except:
+            self.ql.nprint("[!] Error: PC(0x%x) Unreachable" % self.ql.reg.arch_pc)
 
 
     def _x86_get_params_by_index(self, index):

@@ -5,6 +5,7 @@
 import os
 
 from qiling.exception import *
+from qiling.os.stat import *
 
 try:
     import fcntl
@@ -16,10 +17,14 @@ class ql_file:
     def __init__(self, path, fd):
         self.__path = path
         self.__fd = fd
+        # information for syscall mmap
+        self._is_map_shared = False
+        self._mapped_offset = -1
 
     @classmethod
     def open(self, open_path, open_flags, open_mode):
         open_mode &= 0x7fffffff
+
         try:
             fd = os.open(open_path, open_flags, open_mode)
         except OSError as e:
@@ -42,7 +47,7 @@ class ql_file:
         return os.close(self.__fd)
     
     def fstat(self):
-        return os.fstat(self.__fd)
+        return Fstat(self.__fd)
     
     def ioctl(self, ioctl_cmd, ioctl_arg):
         try:
